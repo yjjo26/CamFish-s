@@ -1,0 +1,59 @@
+/* CamFish - 낚시 테마 전역 스타일 */
+:root {
+  /* 낚시/바다 테마 색상 */
+  --primary-gradient: linear-gradient(135deg, #4A6CF7 0%, #6366F1 50%, #8B5CF6 100%);
+  --primary-color: #4A6CF7;
+  --primary-dark: #3B5CE5;
+  --secondary-color: #6366F1;
+  --accent-color: #8B5CF6;
+  
+  /* 배경 색상 */
+  --bg-light: #F8FAFC;
+  --bg-card: rgba(255, 255, 255, 0.95);
+  
+  /* 텍스트 색상 */
+  --text-primary: #1E293B;
+  --text-secondary: #64748B;
+  --text-light: #94A3B8;
+  --text-white: #FFFFFF;
+  
+  /* 폰트 */
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background-color: var(--bg-light);
+}
+
+#root {
+  width: 100%;
+  height: 100vh;
+  position: relative;
+}
+
+/* 유틸리티 */
+.gradient-bg {
+  background: var(--primary-gradient);
+}
+
+.glass-effect {
+  background: var(--bg-card);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}

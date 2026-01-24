@@ -1,0 +1,30 @@
+export interface Place {
+    id: number;
+    name: string;
+    type: 'FISHING' | 'CAMPING';
+    address: string;
+    lat: number;
+    lng: number;
+    desc?: string;
+}
+
+
+import { supabase } from '../lib/supabase';
+
+export const fetchPlaces = async (): Promise<Place[]> => {
+    const { data, error } = await supabase
+        .from('places')
+        .select('*');
+
+    if (error) {
+        console.error('Error fetching places:', error);
+        return [];
+    }
+
+    return data as Place[];
+};
+
+// Fallback/Legacy export if needed, or we can just export an empty array to satisfy types for now
+// until we refactor the consumer.
+export const PREDEFINED_PLACES: Place[] = [];
+

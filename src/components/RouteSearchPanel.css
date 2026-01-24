@@ -1,0 +1,652 @@
+/* RouteSearchPanel.css */
+.search-panel-container {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    width: 360px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 1000;
+    transition: all 0.3s ease;
+    overflow: hidden;
+    max-height: 90vh;
+    /* Limiting height */
+    display: flex;
+    flex-direction: column;
+}
+
+.search-panel-container.expanded {
+    width: 360px;
+    /* Keep width consistent */
+}
+
+.category-toggles {
+    display: flex;
+    gap: 8px;
+    padding: 0 16px 10px 16px;
+    /* Padding for visual separation */
+}
+
+.cat-btn {
+    flex: 1;
+    padding: 8px;
+    border: 1px solid #eee;
+    background: #f9fafb;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #555;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.cat-btn:hover {
+    background: #f0f0f0;
+}
+
+.cat-btn.active.fish {
+    background: #EFF6FF;
+    border-color: #3B82F6;
+    color: #1D4ED8;
+}
+
+.cat-btn.active.camp {
+    background: #ECFDF5;
+    border-color: #10B981;
+    color: #047857;
+}
+
+.search-bar-header {
+    padding: 12px 16px;
+    cursor: pointer;
+    background: white;
+}
+
+.simple-search-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.search-icon {
+    font-size: 18px;
+}
+
+.simple-input-text {
+    flex: 1;
+    font-size: 16px;
+    color: #333;
+    font-weight: 500;
+}
+
+.simple-summary {
+    font-size: 12px;
+    color: #666;
+    background: #f3f4f6;
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+.full-search-form {
+    padding-top: 5px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    padding-bottom: 20px;
+    overflow-y: auto;
+    /* Scroll if content is too long */
+}
+
+.input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 0 16px;
+}
+
+.input-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #f8f9fa;
+    padding: 8px 12px;
+    border-radius: 8px;
+}
+
+.input-row input {
+    border: none;
+    background: transparent;
+    width: 100%;
+    outline: none;
+    font-size: 15px;
+}
+
+.dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+.start-dot {
+    background: #22C55E;
+}
+
+.goal-dot {
+    background: #EF4444;
+}
+
+.waypoint-dot {
+    background: #F59E0B;
+    width: 16px;
+    height: 16px;
+    color: white;
+    font-size: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+}
+
+.form-actions-mini {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 5px;
+}
+
+.text-btn {
+    background: none;
+    border: none;
+    color: #4A6CF7;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 5px;
+}
+
+.search-btn-primary {
+    background: #4A6CF7;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.search-btn-primary:active {
+    background: #3256d6;
+}
+
+/* AI Results Section */
+.ai-result-section {
+    border-top: 1px solid #eee;
+    padding: 15px 16px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(5px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.result-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.theme-badge {
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 10px;
+    font-weight: bold;
+    color: white;
+}
+
+.theme-badge.FISHING {
+    background: #3B82F6;
+}
+
+.theme-badge.CAMPING {
+    background: #10B981;
+}
+
+.theme-badge.GENERAL {
+    background: #6B7280;
+}
+
+.result-header h4 {
+    margin: 0;
+    font-size: 16px;
+    color: #1F2937;
+}
+
+.checklist-box {
+    background: #F9FAFB;
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid #E5E7EB;
+}
+
+.section-title-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.checklist-box h5,
+.spots-box h5 {
+    margin: 0;
+    font-size: 14px;
+    color: #374151;
+    font-weight: 700;
+}
+
+.progress-text {
+    font-size: 12px;
+    color: #6B7280;
+    font-weight: 600;
+}
+
+.checklist-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.check-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background: white;
+    border: 1px solid #E5E7EB;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.check-item:hover {
+    background: #F3F4F6;
+}
+
+.check-item.checked {
+    background: #F0FDF4;
+    /* Light Green */
+    border-color: #86EFAC;
+}
+
+.check-item span {
+    font-size: 14px;
+    color: #333;
+    font-weight: 500;
+}
+
+.check-item.checked span {
+    color: #15803D;
+    text-decoration: line-through;
+    opacity: 0.8;
+}
+
+.check-circle {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 2px solid #D1D5DB;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    color: white;
+    background: white;
+}
+
+.check-item.checked .check-circle {
+    background: #22C55E;
+    border-color: #22C55E;
+}
+
+/* Shopping Guide */
+.shopping-guide {
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px dashed #E5E7EB;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.guide-label {
+    font-size: 12px;
+    color: #6B7280;
+    font-weight: 600;
+}
+
+.guide-keywords {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.keyword-tag {
+    background: #EFF6FF;
+    color: #2563EB;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.tags-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.check-tag {
+    background: white;
+    border: 1px solid #E5E7EB;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    color: #374151;
+}
+
+.spots-box {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 5px;
+}
+
+.spot-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    border: 1px solid #E5E7EB;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+/* Fishing Info Box */
+.fishing-info-box {
+    background: #EFF6FF;
+    border: 1px solid #BFDBFE;
+    border-radius: 8px;
+    padding: 8px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 5px;
+}
+
+.info-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.info-icon {
+    font-size: 16px;
+}
+
+.info-content {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+}
+
+.info-label {
+    color: #1E40AF;
+    font-weight: 700;
+}
+
+.info-val {
+    color: #1D4ED8;
+    font-weight: 500;
+}
+
+.spot-option:hover {
+    background: #F3F4F6;
+}
+
+.spot-option.selected {
+    border-color: #8B5CF6;
+    background: #F5F3FF;
+}
+
+.checkbox-custom {
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    border: 2px solid #D1D5DB;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    color: white;
+}
+
+.spot-option.selected .checkbox-custom {
+    background: #8B5CF6;
+    border-color: #8B5CF6;
+}
+
+.spot-text {
+    display: flex;
+    flex-direction: column;
+}
+
+.spot-name {
+    font-weight: 600;
+    font-size: 14px;
+    color: #111;
+}
+
+.spot-type {
+    font-size: 12px;
+    color: #6B7280;
+}
+
+.confirm-trip-btn {
+    width: 100%;
+    padding: 12px;
+    background: #8B5CF6;
+    /* Purple for Magic/AI feel */
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-weight: bold;
+    font-size: 15px;
+    cursor: pointer;
+    margin-top: 5px;
+}
+
+.confirm-trip-btn:hover {
+    background: #7C3AED;
+}
+
+.confirm-trip-btn:disabled {
+    background: #C4B5FD;
+}
+
+.close-panel-btn {
+    background: none;
+    border: none;
+    color: #9CA3AF;
+    font-size: 13px;
+    align-self: center;
+    cursor: pointer;
+    margin-top: 5px;
+    text-decoration: underline;
+}
+
+.remove-wp-btn {
+    background: transparent;
+    border: none;
+    color: #999;
+    cursor: pointer;
+}
+
+.spots-box.stopover-box {
+    margin-top: 10px;
+    background-color: #f8fafc;
+    border: 1px dashed #cbd5e1;
+}
+
+.spot-option.stopover {
+    border-left: 3px solid #f59e0b;
+}
+
+.spot-reason {
+    display: block;
+    font-size: 11px;
+    color: #d97706;
+    margin-top: 2px;
+}
+
+/* New Checklist & Shopping UI */
+.check-item-container {
+    background: white;
+    border: 1px solid #E5E7EB;
+    border-radius: 8px;
+    overflow: hidden;
+    transition: all 0.2s;
+}
+
+.check-item-container.completed {
+    border-color: #86EFAC;
+    background: #F0FDF4;
+}
+
+.check-item-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    cursor: pointer;
+}
+
+.check-label-group {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+}
+
+.check-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: #1F2937;
+}
+
+.shop-badge {
+    font-size: 11px;
+    color: #4F46E5;
+    background: #EEF2FF;
+    padding: 2px 6px;
+    border-radius: 4px;
+    display: inline-block;
+    width: fit-content;
+    margin-top: 2px;
+    font-weight: 600;
+}
+
+.shop-list-dropdown {
+    background: #F9FAFB;
+    border-top: 1px dashed #E5E7EB;
+    padding: 5px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.shop-option {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 10px;
+    background: white;
+    border: 1px solid #E5E7EB;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.shop-option:hover {
+    background: #F3F4F6;
+}
+
+.shop-option.selected {
+    background: #F5F3FF;
+    border-color: #8B5CF6;
+}
+
+.shop-name-mini {
+    font-size: 13px;
+    color: #374151;
+}
+
+.add-btn-mini {
+    font-size: 11px;
+    font-weight: bold;
+    color: #6B7280;
+}
+
+.shop-option.selected .add-btn-mini {
+    color: #7C3AED;
+}
+
+.order-controls {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    margin-left: 5px;
+}
+
+.order-controls button {
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 8px;
+    width: 20px;
+    height: 16px;
+    cursor: pointer;
+    color: #666;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+}
+
+.order-controls button:hover {
+    background: #f0f0f0;
+    color: #333;
+}
+
+.order-badge {
+    font-size: 10px;
+    font-weight: bold;
+    color: #4A6CF7;
+    background: #EFF6FF;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #BFDBFE;
+}

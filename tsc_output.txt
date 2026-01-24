@@ -1,0 +1,5 @@
+﻿src/components/RouteSearchPanel.tsx(4,29): error TS6133: 'Place' is declared but its value is never read.
+src/components/RouteSearchPanel.tsx(80,24): error TS2339: Property 'Event' does not exist on type 'typeof maps'.
+src/components/RouteSearchPanel.tsx(93,28): error TS2554: Expected 2 arguments, but got 0.
+src/components/RouteSearchPanel.tsx(94,44): error TS2339: Property 'extend' does not exist on type 'LatLngBounds'.
+src/components/RouteSearchPanel.tsx(94,53): error TS2339: Property 'getPosition' does not exist on type 'Marker'.
