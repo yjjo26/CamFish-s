@@ -27,6 +27,7 @@ export interface TripAnalysisResult {
         recommendedShops?: {
             name: string;
             address: string;
+            description?: string; // Menu, Price, etc.
         }[];
     }[];
 }
@@ -34,7 +35,7 @@ export interface TripAnalysisResult {
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 // Using Gemini 1.5 Flash for speed/efficiency/availability
 const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
-import { supabase } from './supabaseClient';
+import { supabase } from '../lib/supabase';
 
 // Helper to find verified shops from DB
 const findVerifiedShops = async (region: string, category: string): Promise<any[]> => {
@@ -68,7 +69,7 @@ const mockAnalyze = (query: string): TripAnalysisResult => {
         recommendedSpots: [],
         recommendedStopovers: [],
         checklistDetails: [
-            { item: '물/음료', category: '식품', recommendedShops: [{ name: '이마트24 인천공항점', address: '인천 중구 공항로 271' }] }
+            { item: '물/음료', category: '식품', recommendedShops: [{ name: '이마트24 인천공항점', address: '인천 중구 공항로 271', description: '생수 1000원~' }] }
         ]
     };
 
@@ -115,6 +116,8 @@ export const analyzeTripIntent = async (query: string, startLocation: string = '
            - For key items (e.g. Meat, Charcoal, Bait, Water, Snacks), suggest a specific REAL shop or market near the destination or start location.
            - CRITICAL: Do NOT say "Nearby Convenience Store". You MUST provide a specific Brand & Branch Name (e.g. "CU Sokcho-Beach Branch", "Emart Sokcho").
            - Even if you are unsure of the exact closest one, provide a REAL famous chain store in that city (e.g. "Lotte Mart Incheon Branch").
+           - Provide the **Real Road Name Address** (e.g. "123, Beach-ro, Sokcho-si").
+           - For Restaurants or Food Shops, provide a **Representative Menu & Approx Price** (e.g. "Pork Belly 180g (15,000 KRW)").
            - This is required so we can find it on the map.
         4. Suggest 2-3 stopovers/waypoint recommendations between "${startLocation}" and the destination.
            - Suitable for a rest stop, famous snack, or scenic view along the route.
@@ -146,7 +149,9 @@ export const analyzeTripIntent = async (query: string, startLocation: string = '
                 { 
                     "item": "Samgyeopsal (Pork Belly)", 
                     "category": "Food", 
-                    "recommendedShops": [ { "name": "Best Butcher", "address": "Real Address" } ]
+                    "recommendedShops": [ 
+                        { "name": "Best Butcher", "address": "Real Address", "description": "Menu/Price info" } 
+                    ]
                 }
             ]
         }

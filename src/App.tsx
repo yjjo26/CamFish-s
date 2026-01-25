@@ -6,13 +6,23 @@ import './App.css';
 
 function App() {
     const [mapInstance, setMapInstance] = useState<naver.maps.Map | null>(null);
-    const [activeTab, setActiveTab] = useState('explore');
+    // Unified State: 'ALL' | 'CAMPING' | 'FISHING' | 'NONE'
+    const [activeCategory, setActiveCategory] = useState<'ALL' | 'NONE' | 'FISHING' | 'CAMPING'>('ALL');
 
     return (
         <div className="app-container">
             <Map onMapLoad={setMapInstance} />
-            <RouteSearchPanel map={mapInstance} />
-            <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
+            <RouteSearchPanel
+                map={mapInstance}
+                activeCategory={activeCategory}
+                onCategoryChange={setActiveCategory}
+            />
+            <BottomNav
+                activeTab={activeCategory}
+                onTabChange={(tab) => {
+                    setActiveCategory(tab as 'NONE' | 'FISHING' | 'CAMPING');
+                }}
+            />
         </div>
     );
 }

@@ -28,41 +28,6 @@
     /* Padding for visual separation */
 }
 
-.cat-btn {
-    flex: 1;
-    padding: 8px;
-    border: 1px solid #eee;
-    background: #f9fafb;
-    border-radius: 8px;
-    font-size: 13px;
-    font-weight: 600;
-    color: #555;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-.cat-btn:hover {
-    background: #f0f0f0;
-}
-
-.cat-btn.active.fish {
-    background: #EFF6FF;
-    border-color: #3B82F6;
-    color: #1D4ED8;
-}
-
-.cat-btn.active.camp {
-    background: #ECFDF5;
-    border-color: #10B981;
-    color: #047857;
-}
-
-.search-bar-header {
-    padding: 12px 16px;
-    cursor: pointer;
-    background: white;
-}
-
 .simple-search-bar {
     display: flex;
     align-items: center;

@@ -7,9 +7,9 @@ interface BottomNavProps {
 
 const BottomNav = ({ activeTab, onTabChange }: BottomNavProps) => {
     const tabs = [
-        { id: 'explore', label: '캠핑', icon: '🗺️' },
-        { id: 'spots', label: '낚시', icon: '🎣' },
-        { id: 'weather', label: '청소', icon: '🌊' },
+        { id: 'ALL', label: '전체', icon: '🏞️' },
+        { id: 'CAMPING', label: '캠핑', icon: '⛺' }, // Updated icon for consistency
+        { id: 'FISHING', label: '낚시', icon: '🎣' },
     ];
 
     return (

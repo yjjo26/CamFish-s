@@ -12,6 +12,7 @@ export interface Place {
 import { supabase } from '../lib/supabase';
 
 export const fetchPlaces = async (): Promise<Place[]> => {
+    console.log("[DEBUG] fetchPlaces called");
     const { data, error } = await supabase
         .from('places')
         .select('*');
