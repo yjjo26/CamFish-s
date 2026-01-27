@@ -2,10 +2,21 @@ import { useState, useRef, useEffect } from 'react';
 import { getDrivingRoute, geocodeAddress, Coordinates } from '../services/naverMapService';
 import { analyzeTripIntent, TripAnalysisResult } from '../services/tripAgentService';
 import { fetchPlaces, Place } from '../data/places';
-import { FISH_SPECIES, BAITS, MOCK_WEATHER, MOCK_TIDE, MOCK_SHOPS, BaitShop } from '../data/fishingData';
+import { fetchFishSpecies, fetchBaits, fetchBaitShops, FishSpecies, Bait, BaitShop, getCurrentSeason } from '../services/fishingService';
+import { fetchCampingDetails, fetchRecommendedGear, fetchCampingRecipes, fetchNearbyAmenities, CampingSpotDetail, CampingGear, CampingRecipe, CampAmenity } from '../services/campingService';
+import { fetchWeather, fetchTide, WeatherData, TideData } from '../services/weatherService';
+
 // @ts-ignore
 import MarkerClustering from '../lib/MarkerClustering';
 import './RouteSearchPanel.css';
+
+const POPULAR_POINTS = [
+    { id: 'p1', name: '을왕리 선녀바위', image: 'https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=200&h=200&fit=crop', desc: '서울 근교 국민 포인트' },
+    { id: 'p2', name: '궁평항 피싱피어', image: 'https://images.unsplash.com/photo-1516939884455-1445c8652f83?w=200&h=200&fit=crop', desc: '가족 낚시 추천' },
+    { id: 'p3', name: '시화방조제', image: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=200&h=200&fit=crop', desc: '우럭/광어 손맛' },
+    { id: 'p4', name: '가평 자라섬', image: 'https://images.unsplash.com/photo-1504280390367-361c6d9f38f4?w=200&h=200&fit=crop', desc: '캠핑 페스티벌' },
+    { id: 'p5', name: '몽산포 캠핑장', image: 'https://images.unsplash.com/photo-1523987355523-c7b5b0dd90a7?w=200&h=200&fit=crop', desc: '갯벌 체험 가능한 곳' }
+];
 
 interface RouteSearchPanelProps {
     map: naver.maps.Map | null;
@@ -31,16 +42,25 @@ const RouteSearchPanel = ({ map, activeCategory, onCategoryChange }: RouteSearch
     const [isExpanded, setIsExpanded] = useState(false);
     const [isSearching, setIsSearching] = useState(false);
 
-    // Removed local activeCategory state
-
     // AI Trip State
     const [tripResult, setTripResult] = useState<TripAnalysisResult | null>(null);
 
+
+    // Real Data State
+    const [currentSpecies, setCurrentSpecies] = useState<FishSpecies[]>([]);
+    const [currentBaits, setCurrentBaits] = useState<Bait[]>([]);
+    const [currentWeather, setCurrentWeather] = useState<WeatherData | null>(null);
+    const [currentTide, setCurrentTide] = useState<TideData | null>(null);
+    const [nearbyShops, setNearbyShops] = useState<BaitShop[]>([]);
+
+    // Camping Data State
+    const [campingDetails, setCampingDetails] = useState<CampingSpotDetail | null>(null);
+    const [recommendedGear, setRecommendedGear] = useState<CampingGear[]>([]);
+    const [campingRecipes, setCampingRecipes] = useState<CampingRecipe[]>([]);
+    const [nearbyAmenities, setNearbyAmenities] = useState<CampAmenity[]>([]);
+
     const [selectedSpots, setSelectedSpots] = useState<string[]>([]);
     const [focusedPlace, setFocusedPlace] = useState<Place | null>(null);
-    const [selectedShop, setSelectedShop] = useState<BaitShop | null>(null);
-
-    // ... (rest of state and refs remain) ...
 
     // Checklist State
     const [selectedChecklistItems, setSelectedChecklistItems] = useState<Set<string>>(new Set());
@@ -53,8 +73,9 @@ const RouteSearchPanel = ({ map, activeCategory, onCategoryChange }: RouteSearch
         waypointMarkers: naver.maps.Marker[];
         polyline?: naver.maps.Polyline;
         categoryMarkers: naver.maps.Marker[]; // Legacy: Kept for type safety, but unused with clustering
+        shopMarkers: naver.maps.Marker[];
         clusterer?: any; // MarkerClustering Instance
-    }>({ waypointMarkers: [], categoryMarkers: [] });
+    }>({ waypointMarkers: [], categoryMarkers: [], shopMarkers: [] });
 
     const [routeSummary, setRouteSummary] = useState<{ distance: number; duration: number } | null>(null);
 
@@ -77,43 +98,88 @@ const RouteSearchPanel = ({ map, activeCategory, onCategoryChange }: RouteSearch
         loadPlaces();
     }, []);
 
+
+    // Effect: Fetch Detail Data when focusedPlace changes
+    useEffect(() => {
+        if (!focusedPlace) {
+            // Reset Detail State
+            setCurrentSpecies([]);
+            setCurrentBaits([]);
+            setCurrentWeather(null);
+            setCurrentTide(null);
+            setNearbyShops([]);
+            setCampingDetails(null);
+            setRecommendedGear([]);
+            setCampingRecipes([]);
+            setNearbyAmenities([]);
+            return;
+        }
+
+        const loadDetailData = async () => {
+            // 1. Weather & Tide
+            const weather = await fetchWeather(focusedPlace.lat, focusedPlace.lng);
+            const tide = await fetchTide(focusedPlace.lat, focusedPlace.lng);
+            setCurrentWeather(weather);
+            setCurrentTide(tide);
+
+            // 2. Fishing Data (if applicable)
+            if (focusedPlace.type === 'FISHING') {
+                const species = await fetchFishSpecies(String(focusedPlace.id));
+                setCurrentSpecies(species);
+
+                // Fetch Baits for these species
+                const speciesIds = species.map(s => s.id);
+                const baits = await fetchBaits(speciesIds);
+                setCurrentBaits(baits);
+            } else if (focusedPlace.type === 'CAMPING') {
+                // Fetch Camping Data
+                const details = await fetchCampingDetails(String(focusedPlace.id));
+                setCampingDetails(details);
+
+                const gear = await fetchRecommendedGear(String(focusedPlace.id));
+                setRecommendedGear(gear);
+
+                const recipes = await fetchCampingRecipes();
+                setCampingRecipes(recipes);
+            }
+        };
+
+        loadDetailData();
+    }, [focusedPlace]);
+
     // Handle Category Toggles with Clustering
     useEffect(() => {
         if (!map) return;
 
-
-
+        // ... existing cleanup code ...
         // 1. Clear existing clusterer and markers
         if (mapObjectsRef.current.clusterer) {
-
             mapObjectsRef.current.clusterer.setMap(null);
             mapObjectsRef.current.clusterer = null;
         }
 
+        // Clear existing shop markers
+        if (mapObjectsRef.current.shopMarkers) {
+            mapObjectsRef.current.shopMarkers.forEach(m => m.setMap(null));
+        }
+        mapObjectsRef.current.shopMarkers = [];
+
         if (activeCategory === 'NONE') return;
 
-        console.log(`[DEBUG] Filtering places. Total: ${places.length}, Category: ${activeCategory}`);
-
         // 2. Filter Places
-        // If ALL, show everything. If specific, filter by type.
         const placesToShow = activeCategory === 'ALL'
             ? places
             : places.filter(p => p.type === activeCategory);
 
-        console.log(`[DEBUG] Filtered: ${placesToShow.length} places`);
-
         // Refined Logic for Focus Mode
         let markersToRender: Place[];
         if (focusedPlace) {
-            // Show only focused place + selected shop (if any)
             markersToRender = [focusedPlace];
-            // Note: Shops are separate entities, we handle them below or merge here if they were in 'places' array.
-            // But shops are in MOCK_SHOPS, not 'places' state currently.
         } else {
             markersToRender = placesToShow;
         }
 
-        // 3. Create Markers (for Main Places)
+        // 3. Create Markers
         const newMarkers = markersToRender.map(place => {
             const iconChar = place.type === 'FISHING' ? '🎣' : '⛺';
             const color = place.type === 'FISHING' ? '#2563EB' : '#10B981';
@@ -129,12 +195,9 @@ const RouteSearchPanel = ({ map, activeCategory, onCategoryChange }: RouteSearch
                 }
             });
 
-            // Click Handler
             naver.maps.Event.addListener(marker, 'click', () => {
                 setFocusedPlace(place);
-                setIsExpanded(true); // Open panel to show details
-
-                // Optional: Pan to the place
+                setIsExpanded(true);
                 (map as any).panTo(new naver.maps.LatLng(place.lat, place.lng));
             });
 
@@ -143,13 +206,7 @@ const RouteSearchPanel = ({ map, activeCategory, onCategoryChange }: RouteSearch
 
         // 4. Initialize MarkerClustering
         if (newMarkers.length > 0) {
-
-            // MarkerClustering is now imported at the top
-
-            // If ALL, use a neutral color or mix. Let's stick to Blue for Primary.
-            // Or maybe check mostly fishing? Let's just use Blue for cluster or Green if activeCategory is Camping.
             const clusterColor = activeCategory === 'CAMPING' ? '#10B981' : '#2563EB';
-
             try {
                 const clusterer = new (MarkerClustering as any)({
                     minClusterSize: 2,
@@ -174,63 +231,55 @@ const RouteSearchPanel = ({ map, activeCategory, onCategoryChange }: RouteSearch
                             size: new (naver.maps as any).Size(60, 60),
                             anchor: new (naver.maps as any).Point(30, 30)
                         }
-                    ],
-                    // stylingFunction removed as we use direct string replacement
+                    ]
                 });
-
                 mapObjectsRef.current.clusterer = clusterer;
-                console.log("[DEBUG] MarkerClustering initialized successfully");
-
-                /* 
-                 * Disable auto-fit bounds to respect user's location zoom level (15)
-                 * as per user request. Markers outside the view will be clustered but
-                 * the camera won't move.
-                 *
-                if (newMarkers.length > 0) {
-                    const bounds = new naver.maps.LatLngBounds(
-                        newMarkers[0].getPosition(),
-                        newMarkers[0].getPosition()
-                    );
-                    newMarkers.forEach(marker => {
-                        bounds.extend(marker.getPosition());
-                    });
-
-                    map.fitBounds(bounds, {
-                        top: 50, bottom: 50, left: 50, right: 50
-                    });
-                    console.log("[DEBUG] map.fitBounds called for", newMarkers.length, "markers");
-                }
-                */
             } catch (err) {
                 console.error("MarkerClustering initialization failed:", err);
             }
-        } else {
-            console.log("[DEBUG] No markers to cluster");
         }
 
-        // Handle Shop Marker if selected
-        if (selectedShop) {
+        // Shop Markers (Render valid nearby shops)
+        const newShopMarkers: naver.maps.Marker[] = [];
+        nearbyShops.forEach(shop => {
             const shopMarker = new naver.maps.Marker({
-                position: new naver.maps.LatLng(selectedShop.lat, selectedShop.lng),
+                position: new naver.maps.LatLng(shop.lat, shop.lng),
                 map: map,
-                title: selectedShop.name,
+                title: shop.name,
                 icon: {
-                    content: `<div style="background:#F59E0B;width:28px;height:28px;border-radius:50%;border:2px solid white;box-shadow:0 2px 4px rgba(0,0,0,0.3);display:flex;justify-content:center;align-items:center;font-size:16px;">🛒</div>`,
-                    anchor: new naver.maps.Point(14, 14)
+                    content: `<div style="background:#F59E0B;width:24px;height:24px;border-radius:50%;border:2px solid white;box-shadow:0 2px 4px rgba(0,0,0,0.3);display:flex;justify-content:center;align-items:center;font-size:14px;">🛒</div>`,
+                    anchor: new naver.maps.Point(12, 12)
                 }
             });
-            // We don't cluster the shop marker for now, just show it.
-            // We need to keep a ref to remove it later if we wanted to be strict, 
-            // but for now relying on the total cleanup at the start of useEffect might miss it if we don't track it.
-            // Let's add it to a tracking list if we want to clear it safely.
-            // Actually, the cleanup logic at line 83 only clears the clusterer.
-            // We should track this singular marker or just let the clusterer handle everything if we merged them.
-            // For simplicity, let's assume valid React lifecycle re-runs will handle basic cleanup if we tracked it in ref.
-            // But to be safe, let's add it to mapObjectsRef if we want to clear it.
-            // For this iteration, let's just create it. (Optimizable)
-        }
 
-    }, [activeCategory, map, places, focusedPlace, selectedShop]);
+            naver.maps.Event.addListener(shopMarker, 'click', () => {
+                alert(`${shop.name} (${shop.distance?.toFixed(1)}km)\n${shop.address || ''}\n${shop.phone || ''}`);
+            });
+            newShopMarkers.push(shopMarker);
+        });
+
+        // Amenities Markers
+        nearbyAmenities.forEach(amenity => {
+            const amMarker = new naver.maps.Marker({
+                position: new naver.maps.LatLng(amenity.lat, amenity.lng),
+                map: map,
+                title: amenity.name,
+                icon: {
+                    content: `<div style="background:#10B981;width:24px;height:24px;border-radius:50%;border:2px solid white;box-shadow:0 2px 4px rgba(0,0,0,0.3);display:flex;justify-content:center;align-items:center;font-size:14px;">🏪</div>`,
+                    anchor: new naver.maps.Point(12, 12)
+                }
+            });
+
+            naver.maps.Event.addListener(amMarker, 'click', () => {
+                alert(`${amenity.name} (${amenity.distance?.toFixed(1)}km)\n${amenity.address || ''}\n${amenity.phone || ''}`);
+            });
+            newShopMarkers.push(amMarker);
+        });
+
+        mapObjectsRef.current.shopMarkers = newShopMarkers;
+
+
+    }, [activeCategory, map, places, focusedPlace, nearbyShops, nearbyAmenities]); // Added nearbyAmenities dependency
 
     const getCurrentLocationCoords = (): Promise<Coordinates> => {
         return new Promise((resolve) => {
@@ -514,305 +563,279 @@ const RouteSearchPanel = ({ map, activeCategory, onCategoryChange }: RouteSearch
 
     return (
         <>
-            {/* Main Search Panel (Top Left) */}
-            <div className={`search-panel-container ${isExpanded ? 'expanded' : ''}`}>
-                <div className="search-bar-header" onClick={() => !isExpanded && setIsExpanded(true)}>
-                    {!isExpanded ? (
-                        // Collapsed Header
-                        focusedPlace ? (
-                            <div className="simple-search-bar" style={{ background: '#EFF6FF' }}>
-                                <span className="search-icon">🐟</span>
-                                <div className="simple-input-text" style={{ fontWeight: 'bold', color: '#1E40AF' }}>
-                                    {focusedPlace.name} (선택됨)
-                                </div>
-                                <button onClick={(e) => { e.stopPropagation(); setFocusedPlace(null); setSelectedShop(null); }} style={{ border: 'none', background: 'transparent', fontSize: '18px', cursor: 'pointer', color: '#666' }}>✕</button>
-                            </div>
-                        ) : (
-                            <div className="simple-search-bar">
-                                <span className="search-icon">🔍</span>
-                                <div className="simple-input-text">
-                                    {tripResult ? `[${tripResult.theme}] ${tripResult.destination}` : (goalLocation || "어디로 떠나시나요?")}
-                                </div>
-                                {routeSummary && (
-                                    <div className="simple-summary">
-                                        🚗 {formatDistance(routeSummary.distance)} | {formatDuration(routeSummary.duration)}
-                                    </div>
-                                )}
-                            </div>
-                        )
-                    ) : (
-                        // Expanded Form
-                        <div className="full-search-form">
+            {/* --- NEW BOTTOM SHEET LAYOUT --- */}
+
+            {/* 1. Bottom Fixed Search/Nav Container */}
+            <div className={`bottom-sheet-container ${isExpanded ? 'active' : ''}`}>
+
+                {/* Scroll Wrapper for Sheet Animation */}
+                <div className="sheet-scroll-view" onClick={() => !isExpanded && setIsExpanded(true)}>
+
+                    {/* Search Bar Floating - Moves UP when active */}
+                    <div className="glass-search-bar-container">
+                        <div className="glass-search-input-box">
+                            <span className="search-icon">🔍</span>
                             {focusedPlace ? (
-                                <div className="fishing-detail-view">
-                                    <div className="detail-header">
-                                        <h2>{focusedPlace.name}</h2>
-                                        <span className="badge">{focusedPlace.type === 'FISHING' ? '낚시 포인트' : '캠핑장'}</span>
-                                        <button className="close-btn" onClick={() => { setFocusedPlace(null); setSelectedShop(null); }}>닫기</button>
-                                    </div>
-
-                                    {/* Weather & Tide */}
-                                    <div className="weather-card">
-                                        <div className="weather-row">
-                                            <span style={{ fontSize: '24px' }}>☀️</span>
-                                            <div>
-                                                <div className="temp">{MOCK_WEATHER.temp}°C {MOCK_WEATHER.condition}</div>
-                                                <div className="sub-weather">💨 {MOCK_WEATHER.windSpeed}m/s  🌊 {MOCK_WEATHER.waveHeight}m</div>
-                                            </div>
-                                        </div>
-                                        <div className="tide-row">
-                                            <div className="tide-item">High: {MOCK_TIDE.highTide.join(', ')}</div>
-                                            <div className="tide-item">Low: {MOCK_TIDE.lowTide.join(', ')}</div>
-                                            <div className="tide-level">({MOCK_TIDE.tideLevel})</div>
-                                        </div>
-                                    </div>
-
-                                    {/* Species */}
-                                    <div className="species-section">
-                                        <h3>🎣 시즌 어종 (지금 잡혀요!)</h3>
-                                        <div className="species-list">
-                                            {FISH_SPECIES.map(fish => ( // In real app, filter by month
-                                                <div key={fish.id} className="species-item">
-                                                    <div className="fish-icon">🐟</div>
-                                                    <div className="fish-name">{fish.name}</div>
-                                                    <div className="fish-time">{fish.activeTime === 'Day' ? '☀️ 주간' : fish.activeTime === 'Night' ? '🌙 야간' : '☀️/🌙 종일'}</div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    {/* Baits */}
-                                    <div className="bait-section">
-                                        <h3>🪱 추천 미끼 & 판매처</h3>
-                                        {BAITS.map(bait => (
-                                            <div key={bait.id} className="bait-item">
-                                                <div className="bait-info">
-                                                    <strong>{bait.name}</strong>
-                                                    <p>{bait.description}</p>
-                                                </div>
-                                                <button className="find-shop-btn" onClick={() => {
-                                                    // Find a shop that sells this bait.
-                                                    const shop = MOCK_SHOPS.find(s => s.sellingBaitIds.includes(bait.id));
-                                                    if (shop) {
-                                                        setSelectedShop(shop);
-                                                        (map as any).panTo(new naver.maps.LatLng(shop.lat, shop.lng));
-                                                        alert(`${shop.name} 위치가 지도에 표시되었습니다.`);
-                                                    } else {
-                                                        alert("근처 판매점이 없습니다.");
-                                                    }
-                                                }}>판매처 찾기</button>
-                                            </div>
-                                        ))}
-                                    </div>
-
-                                    <div className="action-buttons">
-                                        <button className="set-goal-btn" onClick={() => {
-                                            setGoalLocation(focusedPlace.name);
-                                            setFocusedPlace(null); // Exit detail view to search view
-                                            // setIsExpanded(true) is already true
-                                        }}>
-                                            여기로 출발지 설정
-                                        </button>
-                                    </div>
-
-                                    <button className="close-panel-btn" onClick={(e) => {
-                                        e.stopPropagation();
-                                        setIsExpanded(false);
-                                    }}>닫기</button>
+                                <div className="simple-input-text" style={{ fontWeight: 'bold', color: '#1E40AF', flex: 1 }}>
+                                    {focusedPlace.name}
+                                    <button onClick={(e) => { e.stopPropagation(); setFocusedPlace(null); }} style={{ marginLeft: '10px', border: 'none', background: 'transparent', cursor: 'pointer', color: '#666' }}>✕</button>
                                 </div>
                             ) : (
-                                <>
-                                    {/* Normal Search View */}
-                                    <div className="input-group">
-                                        <div className="input-row">
-                                            <span className="dot start-dot"></span>
-                                            <input
-                                                value={startLocation}
-                                                onChange={(e) => setStartLocation(e.target.value)}
-                                                placeholder="출발지"
-                                            />
-                                        </div>
+                                <input
+                                    type="text"
+                                    className="glass-input"
+                                    placeholder={tripResult ? `[${tripResult.theme}] ${tripResult.destination}` : "어디로 떠나시나요?"}
+                                    value={goalLocation}
+                                    onChange={(e) => setGoalLocation(e.target.value)}
+                                    // Stop propagation so clicking input doesn't toggle sheet if logic requires
+                                    onClick={(e) => e.stopPropagation()}
+                                    onFocus={() => !isExpanded && setIsExpanded(true)}
+                                    onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                                />
+                            )}
+                            <button className="glass-filter-btn">
+                                <span style={{ fontSize: '18px' }}>⚙️</span>
+                            </button>
+                        </div>
+                    </div>
 
-                                        {waypoints.map((wp, idx) => (
-                                            <div key={wp.id} className="input-row waypoint-row">
-                                                <span className="dot waypoint-dot">{idx + 1}</span>
-                                                <input
-                                                    value={wp.value}
-                                                    onChange={(e) => handleWaypointChange(wp.id, e.target.value)}
-                                                    placeholder="경유지"
-                                                />
-                                                <button className="remove-wp-btn" onClick={() => handleRemoveWaypoint(wp.id)}>✕</button>
+                    {/* Expanded Content Area */}
+                    <div className="bottom-sheet-content">
+
+                        {/* A. Popular Points (Horizontal Scroll) - Only show when NOT searching/planning yet */}
+                        {!tripResult && !focusedPlace && (
+                            <div className="popular-points-section">
+                                <h3 className="section-title">🔥 요즘 뜨는 핫플레이스</h3>
+                                <div className="horizontal-scroll-list">
+                                    {POPULAR_POINTS.map(point => (
+                                        <div key={point.id} className="point-card" onClick={(e) => { e.stopPropagation(); handleStartRealNavigation(point.name); }}>
+                                            <div className="card-thumb" style={{ backgroundImage: `url(${point.image})` }}></div>
+                                            <div className="card-info">
+                                                <span className="card-name">{point.name}</span>
+                                                <span className="card-desc">{point.desc}</span>
                                             </div>
-                                        ))}
+                                        </div>
+                                    ))}
+                                </div>
 
-                                        <div className="input-row">
-                                            <span className="dot goal-dot"></span>
-                                            <input
-                                                value={goalLocation}
-                                                onChange={(e) => setGoalLocation(e.target.value)}
-                                                placeholder="도착지 (예: 을왕리 낚시)"
-                                                onKeyDown={(e) => { if (e.key === 'Enter') handleSearch(); }}
-                                            />
+                                {/* Category Badges */}
+                                <div className="category-badges-row" style={{ marginTop: '20px', display: 'flex', gap: '10px' }}>
+                                    <button className={`cat-badge ${activeCategory === 'FISHING' ? 'active' : ''}`} onClick={(e) => { e.stopPropagation(); onCategoryChange(activeCategory === 'FISHING' ? 'ALL' : 'FISHING'); }}>
+                                        🎣 낚시
+                                    </button>
+                                    <button className={`cat-badge ${activeCategory === 'CAMPING' ? 'active' : ''}`} onClick={(e) => { e.stopPropagation(); onCategoryChange(activeCategory === 'CAMPING' ? 'ALL' : 'CAMPING'); }}>
+                                        ⛺ 캠핑
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* B. Detail / Trip Result View */}
+                        {(tripResult || focusedPlace) && (
+                            <div className="detail-content-area">
+
+                                {/* Trip Result */}
+                                {tripResult && (
+                                    <div className="ai-result-section">
+                                        <div className="result-header">
+                                            <span className={`theme-badge ${tripResult.theme}`}>{tripResult.theme === 'FISHING' ? '낚시 여행' : tripResult.theme === 'CAMPING' ? '캠핑 여행' : '일반 여행'}</span>
+                                            <h4>{tripResult.destination}</h4>
                                         </div>
 
-                                        <div className="form-actions-mini">
-                                            <button className="text-btn" onClick={handleAddWaypoint}>+ 경유지</button>
-                                            <button className="search-btn-primary" onClick={handleSearch} disabled={isSearching}>
-                                                {isSearching ? "분석 중..." : "AI 검색"}
+                                        {/* Action Buttons */}
+                                        <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+                                            <button className="confirm-trip-btn" onClick={(e) => { e.stopPropagation(); handleConfirmTrip(); }} disabled={isSearching}>
+                                                {isSearching ? '경로 탐색 중...' : '🚗 바로 안내 시작'}
+                                            </button>
+                                            <button className="confirm-trip-btn" style={{ background: '#F3F4F6', color: '#333' }} onClick={(e) => { e.stopPropagation(); setTripResult(null); setFocusedPlace(null); setRouteSummary(null); }}>
+                                                취소
                                             </button>
                                         </div>
-                                    </div>
 
-                                    {tripResult && (
-                                        <div className="ai-result-section">
-                                            <div className="result-header">
-                                                <span className={`theme-badge ${tripResult.theme}`}>{tripResult.theme}</span>
-                                                <h4>{tripResult.destination} 여행 준비</h4>
-                                            </div>
-
-                                            {/* Fishing Specific Info (Search Result Context) */}
-                                            {tripResult.theme === 'FISHING' && (tripResult.targetSpecies || tripResult.recommendedBait) && (
-                                                <div className="fishing-info-box">
-                                                    {tripResult.targetSpecies && (
-                                                        <div className="info-row">
-                                                            <span className="info-icon">🐟</span>
-                                                            <div className="info-content">
-                                                                <span className="info-label">대상 어종:</span>
-                                                                <span className="info-val">{tripResult.targetSpecies.join(', ')}</span>
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                    {tripResult.recommendedBait && (
-                                                        <div className="info-row">
-                                                            <span className="info-icon">🪱</span>
-                                                            <div className="info-content">
-                                                                <span className="info-label">추천 미끼:</span>
-                                                                <span className="info-val">{tripResult.recommendedBait.join(', ')}</span>
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            )}
-
-
+                                        {/* Checklist */}
+                                        {tripResult.checklistDetails && (
                                             <div className="checklist-box">
                                                 <div className="section-title-row">
-                                                    <h5>✅ 준비물 & 추천 구매처</h5>
+                                                    <h5>✅ 챙길 것</h5>
                                                 </div>
                                                 <div className="checklist-grid">
-                                                    {tripResult.checklistDetails ? (
-                                                        tripResult.checklistDetails.map((detail, idx) => {
-                                                            const isChecked = selectedChecklistItems.has(detail.item);
-                                                            const isExpanded = expandedChecklistItems.has(detail.item);
-                                                            const hasShops = detail.recommendedShops && detail.recommendedShops.length > 0;
-
-                                                            return (
-                                                                <div key={idx} className={`check-item-container ${isChecked ? 'completed' : ''}`}>
-                                                                    <div className="check-item-header" onClick={() => hasShops ? toggleChecklistExpand(detail.item) : toggleChecklistItem(detail.item)}>
-                                                                        <div className={`check-circle ${isChecked ? 'active' : ''}`}
-                                                                            onClick={(e) => { e.stopPropagation(); toggleChecklistItem(detail.item); }}>
-                                                                            {isChecked && '✔'}
-                                                                        </div>
-                                                                        <div className="check-label-group">
-                                                                            <span className="check-name">{detail.item}</span>
-                                                                            {hasShops && <span className="shop-badge">🛒 구매처 {isExpanded ? '▲' : '▼'}</span>}
-                                                                        </div>
-                                                                    </div>
-
-                                                                    {/* Shops Dropdown */}
-                                                                    {isExpanded && hasShops && (
-                                                                        <div className="shop-list-dropdown">
-                                                                            {detail.recommendedShops!.map((shop, sIdx) => (
-                                                                                <div key={sIdx} className={`shop-option ${selectedSpots.includes(shop.name) ? 'selected' : ''}`}
-                                                                                    onClick={() => toggleSpotSelection(shop.name)}>
-                                                                                    <span className="shop-name-mini">{shop.name}</span>
-                                                                                    <span className="add-btn-mini">{selectedSpots.includes(shop.name) ? '제거' : '추가'}</span>
-                                                                                </div>
-                                                                            ))}
-                                                                        </div>
-                                                                    )}
+                                                    {tripResult.checklistDetails.map(item => (
+                                                        <div key={item.item} className={`check-item-container ${selectedChecklistItems.has(item.item) ? 'completed' : ''}`}>
+                                                            <div className="check-item-header" onClick={(e) => { e.stopPropagation(); toggleChecklistItem(item.item); }}>
+                                                                <div className={`check-circle ${selectedChecklistItems.has(item.item) ? 'checked' : ''}`}>
+                                                                    {selectedChecklistItems.has(item.item) ? '✔' : ''}
                                                                 </div>
-                                                            );
-                                                        })
-                                                    ) : (
-                                                        // Fallback for old AI response or legacy
-                                                        tripResult.checklist.map((item, idx) => (
-                                                            <div key={idx} className="check-item" onClick={() => toggleChecklistItem(item)}>
-                                                                <span>{item}</span>
-                                                            </div>
-                                                        ))
-                                                    )}
-                                                </div>
-                                            </div>
-
-                                            <div className="spots-box">
-                                                <h5>📍 AI 추천 경유지 (선택)</h5>
-                                                {tripResult.recommendedSpots && tripResult.recommendedSpots.map((spot, idx) => (
-                                                    <div key={idx} className={`spot-option ${selectedSpots.includes(spot.name) ? 'selected' : ''}`}>
-                                                        <div className="checkbox-custom" onClick={() => toggleSpotSelection(spot.name)}>
-                                                            {selectedSpots.includes(spot.name) ? '✔' : ''}
-                                                        </div>
-                                                        <div className="spot-text" style={{ flex: 1 }} onClick={() => toggleSpotSelection(spot.name)}>
-                                                            <span className="spot-name">{spot.name}</span>
-                                                            <div className="spot-meta">
-                                                                <span className="spot-type">{spot.type}</span>
-                                                                {spot.address && <span className="spot-addr">{spot.address.split(' ').slice(0, 2).join(' ')}...</span>}
-                                                            </div>
-                                                        </div>
-                                                        {selectedSpots.includes(spot.name) && (
-                                                            <div className="order-controls">
-                                                                <button onClick={(e) => { e.stopPropagation(); moveSpot(selectedSpots.indexOf(spot.name), 'UP') }}>▲</button>
-                                                                <div className="order-badge">{selectedSpots.indexOf(spot.name) + 1}</div>
-                                                                <button onClick={(e) => { e.stopPropagation(); moveSpot(selectedSpots.indexOf(spot.name), 'DOWN') }}>▼</button>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                ))}
-                                            </div>
-
-                                            {/* Stopovers Box */}
-                                            {tripResult.recommendedStopovers && tripResult.recommendedStopovers.length > 0 && (
-                                                <div className="spots-box stopover-box">
-                                                    <h5>🛣️ 가는 길 추천 경유지</h5>
-                                                    {tripResult.recommendedStopovers.map((spot, idx) => (
-                                                        <div key={idx} className={`spot-option stopover ${selectedSpots.includes(spot.name) ? 'selected' : ''}`}>
-                                                            <div className="checkbox-custom" onClick={() => toggleSpotSelection(spot.name)}>
-                                                                {selectedSpots.includes(spot.name) ? '✔' : ''}
-                                                            </div>
-                                                            <div className="spot-text" style={{ flex: 1 }} onClick={() => toggleSpotSelection(spot.name)}>
-                                                                <span className="spot-name">{spot.name}</span>
-                                                                <div className="spot-meta">
-                                                                    <span className="spot-type">{spot.type}</span>
-                                                                    <span className="spot-reason">💡 {spot.reason}</span>
+                                                                <div className="check-label-group" style={{ marginLeft: '10px' }}>
+                                                                    <span className="check-name">{item.item}</span>
+                                                                    {/* @ts-ignore */}
+                                                                    {item.reason && <span style={{ fontSize: '11px', color: '#999' }}>{item.reason}</span>}
                                                                 </div>
+                                                                {item.recommendedShops && item.recommendedShops.length > 0 && (
+                                                                    <button style={{ padding: '4px', fontSize: '16px' }} onClick={(e) => { e.stopPropagation(); toggleChecklistExpand(item.item); }}>
+                                                                        {expandedChecklistItems.has(item.item) ? '🔼' : '🔽'}
+                                                                    </button>
+                                                                )}
                                                             </div>
-                                                            {selectedSpots.includes(spot.name) && (
-                                                                <div className="order-controls">
-                                                                    <button onClick={(e) => { e.stopPropagation(); moveSpot(selectedSpots.indexOf(spot.name), 'UP') }}>▲</button>
-                                                                    <div className="order-badge">{selectedSpots.indexOf(spot.name) + 1}</div>
-                                                                    <button onClick={(e) => { e.stopPropagation(); moveSpot(selectedSpots.indexOf(spot.name), 'DOWN') }}>▼</button>
+
+                                                            {/* Expanded Shop List */}
+                                                            {expandedChecklistItems.has(item.item) && item.recommendedShops && (
+                                                                <div className="shop-list-dropdown">
+                                                                    {item.recommendedShops.map((shop, sIdx) => (
+                                                                        <div key={sIdx} className={`shop-option ${selectedSpots.includes(shop.name) ? 'selected' : ''}`} onClick={(e) => { e.stopPropagation(); toggleSpotSelection(shop.name); }}>
+                                                                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                                                <span className="shop-name-mini">{shop.name}</span>
+                                                                                <span style={{ fontSize: '10px', color: '#999' }}>{shop.address}</span>
+                                                                            </div>
+                                                                            <span className="add-btn-mini">{selectedSpots.includes(shop.name) ? '포함됨' : '+ 경유'}</span>
+                                                                        </div>
+                                                                    ))}
                                                                 </div>
                                                             )}
                                                         </div>
                                                     ))}
                                                 </div>
-                                            )}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
 
-                                            <button className="confirm-trip-btn" onClick={handleConfirmTrip} disabled={isSearching}>
-                                                {isSearching ? "경로 계산 중..." : `경유지 ${selectedSpots.length}곳 포함하여 길찾기`}
-                                            </button>
+                                {/* Spot Detail View (When clicked from map) */}
+                                {focusedPlace && !tripResult && (
+                                    <div className="ai-result-section">
+                                        <div className="result-header">
+                                            <span className="theme-badge" style={{ background: focusedPlace.type === 'FISHING' ? '#2563EB' : '#10B981' }}>
+                                                {focusedPlace.type === 'FISHING' ? '낚시 포인트' : '캠핑장'}
+                                            </span>
+                                            <h4>{focusedPlace.name}</h4>
                                         </div>
-                                    )}
+                                        <p style={{ fontSize: '13px', color: '#666', margin: '5px 0' }}>{focusedPlace.address}</p>
+                                        <p style={{ fontSize: '13px', color: '#444' }}>{focusedPlace.desc}</p>
 
-                                    <button className="close-panel-btn" onClick={(e) => {
-                                        e.stopPropagation();
-                                        setIsExpanded(false);
-                                    }}>닫기</button>
-                                </>
-                            )}
-                        </div>
-                    )}
+                                        {/* Weather & Tide (If Fishing) */}
+                                        {focusedPlace.type === 'FISHING' && (
+                                            <div className="fishing-info-box">
+                                                <div className="info-row">
+                                                    <span className="info-icon">🌤️</span>
+                                                    <span className="info-label">날씨:</span>
+                                                    <span className="info-val">{currentWeather ? `${currentWeather.temp}°C, 풍속 ${currentWeather.windSpeed}m/s` : '로딩중...'}</span>
+                                                </div>
+                                                <div className="info-row">
+                                                    <span className="info-icon">🌊</span>
+                                                    <span className="info-label">물때:</span>
+                                                    {/* @ts-ignore */}
+                                                    <span className="info-val">{currentTide ? `물때: ${currentTide.score}` : '로딩중...'}</span>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Camping Details */}
+                                        {focusedPlace.type === 'CAMPING' && (
+                                            <div className="camping-section">
+                                                {/* Spot Details */}
+                                                {campingDetails && (
+                                                    <div className="spot-details" style={{ marginBottom: '20px', padding: '10px', background: '#ECFDF5', borderRadius: '8px', fontSize: '13px' }}>
+                                                        <div style={{ display: 'flex', gap: '10px', marginBottom: '4px' }}>
+                                                            <span style={{ fontWeight: 'bold' }}>🏕️ {campingDetails.campType}</span>
+                                                            <span>바닥: {campingDetails.floorType}</span>
+                                                        </div>
+                                                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '8px' }}>
+                                                            {campingDetails.facilities.electricity && <span style={{ background: '#D1FAE5', color: '#065F46', padding: '2px 6px', borderRadius: '4px' }}>⚡ 전기</span>}
+                                                            {campingDetails.facilities.hotWater && <span style={{ background: '#D1FAE5', color: '#065F46', padding: '2px 6px', borderRadius: '4px' }}>💧 온수</span>}
+                                                            {campingDetails.facilities.wifi && <span style={{ background: '#D1FAE5', color: '#065F46', padding: '2px 6px', borderRadius: '4px' }}>📶 WiFi</span>}
+                                                            {campingDetails.facilities.petFriendly && <span style={{ background: '#D1FAE5', color: '#065F46', padding: '2px 6px', borderRadius: '4px' }}>🐶 반려동물</span>}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                <div className="gear-section">
+                                                    <h3>⛺ 필수/추천 장비</h3>
+                                                    {recommendedGear.length > 0 ? recommendedGear.map(gear => (
+                                                        <div key={gear.id} className="gear-item">
+                                                            <span className="gear-icon">{gear.category === 'SLEEPING' ? '🛌' : gear.category === 'KITCHEN' ? '🍳' : '🔨'}</span>
+                                                            <div className="gear-info">
+                                                                <span className="gear-name">{gear.name}</span>
+                                                                <span className="gear-reason">{gear.reason}</span>
+                                                            </div>
+                                                        </div>
+                                                    )) : <p style={{ fontSize: '12px', color: '#999' }}>추천 장비 정보가 없습니다.</p>}
+                                                </div>
+
+                                                <div className="recipe-section" style={{ marginTop: '15px' }}>
+                                                    <h3>🍳 추천 캠핑 요리</h3>
+                                                    <div className="recipe-list">
+                                                        {campingRecipes.length > 0 ? campingRecipes.map(recipe => (
+                                                            <div key={recipe.id} className="recipe-card">
+                                                                <div className="recipe-header">
+                                                                    <span className="recipe-name">{recipe.name}</span>
+                                                                    {/* @ts-ignore */}
+                                                                    <span className="recipe-diff">{'⭐'.repeat(recipe.difficulty)}</span>
+                                                                </div>
+                                                                {/* @ts-ignore */}
+                                                                <p className="recipe-method">{recipe.method || recipe.cookingMethod}</p>
+                                                            </div>
+                                                        )) : <p style={{ fontSize: '12px', color: '#999' }}>추천 요리 정보가 없습니다.</p>}
+                                                    </div>
+                                                </div>
+
+                                                <button className="confirm-trip-btn" style={{ marginTop: '15px', background: '#10B981' }} onClick={async (e) => {
+                                                    e.stopPropagation();
+                                                    const amenities = await fetchNearbyAmenities(focusedPlace.lat, focusedPlace.lng);
+                                                    setNearbyAmenities(amenities);
+                                                    alert(`${amenities.length}개의 편의시설을 찾았습니다.\n지도를 확대하여 확인하세요.`);
+                                                    if (amenities.length > 0) {
+                                                        (map as any).panTo(new naver.maps.LatLng(amenities[0].lat, amenities[0].lng));
+                                                    }
+                                                }}>
+                                                    🏪 근처 편의시설 찾기
+                                                </button>
+                                            </div>
+                                        )}
+
+                                        <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                                            <button className="confirm-trip-btn" onClick={(e) => { e.stopPropagation(); handleStartRealNavigation(focusedPlace.name); }}>
+                                                🚗 출발지로 설정
+                                            </button>
+                                            {focusedPlace.type === 'FISHING' && (
+                                                <button className="confirm-trip-btn" style={{ background: '#F59E0B' }} onClick={async (e) => {
+                                                    e.stopPropagation();
+                                                    // Find Bait Shop Logic
+                                                    const shops = await fetchBaitShops(focusedPlace.lat, focusedPlace.lng);
+                                                    setNearbyShops(shops);
+                                                    alert(`${shops.length}개의 낚시점을 찾았습니다.`);
+                                                }}>
+                                                    🎣 낚시점 찾기
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
+                            </div>
+                        )}
+                    </div>
                 </div>
+
+                {/* Bottom Navigation */}
+                <div className="bottom-nav-bar">
+                    <div className="nav-item active">
+                        <span className="nav-icon">🗺️</span>
+                        <span className="nav-label">Explore</span>
+                    </div>
+                    <div className="nav-item">
+                        <span className="nav-icon">📋</span>
+                        <span className="nav-label">List</span>
+                    </div>
+                    <div className="nav-item">
+                        <span className="nav-icon">📨</span>
+                        <span className="nav-label">Inbox</span>
+                        <span className="nav-badge">2</span>
+                    </div>
+                    <div className="nav-item">
+                        <span className="nav-icon">👤</span>
+                        <span className="nav-label">Me</span>
+                    </div>
+                </div>
+
             </div>
         </>
     );

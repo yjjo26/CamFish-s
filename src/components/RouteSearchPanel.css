@@ -1,617 +1,332 @@
-/* RouteSearchPanel.css */
-.search-panel-container {
-    position: absolute;
-    top: 20px;
-    left: 20px;
-    width: 360px;
-    background: white;
-    border-radius: 12px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+/* Glassmorphism Variables */
+:root {
+    --glass-bg: rgba(255, 255, 255, 0.85);
+    --glass-border: rgba(255, 255, 255, 0.5);
+    --primary-gradient: linear-gradient(135deg, #10B981 0%, #3B82F6 100%);
+    --shadow-soft: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+    --bottom-nav-height: 70px;
+}
+
+/* Base Container - Bottom Sheet */
+.bottom-sheet-container {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: auto;
+    min-height: 200px;
+    /* Collapsed height */
+    max-height: 95vh;
     z-index: 1000;
-    transition: all 0.3s ease;
-    overflow: hidden;
-    max-height: 90vh;
-    /* Limiting height */
     display: flex;
     flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    /* Align items to bottom */
+    pointer-events: none;
+    /* Pass clicks when collapsed */
+    transition: all 0.5s cubic-bezier(0.19, 1, 0.22, 1);
+    /* Apple-like ease */
 }
 
-.search-panel-container.expanded {
-    width: 360px;
-    /* Keep width consistent */
+.bottom-sheet-container.active {
+    height: 100vh;
+    background: rgba(255, 255, 255, 0.0);
+    /* Transparent wrapper */
+    justify-content: flex-start;
+    /* Align to top when expanded */
+    padding-top: 60px;
+    /* Safe area for search bar at top */
+    pointer-events: auto;
 }
 
-.category-toggles {
-    display: flex;
-    gap: 8px;
-    padding: 0 16px 10px 16px;
-    /* Padding for visual separation */
+/* Floating Search Bar */
+.glass-search-bar-container {
+    width: 92%;
+    max-width: 500px;
+    margin-bottom: 20px;
+    /* Spacing from bottom/nav when collapsed */
+    pointer-events: auto;
+    transition: all 0.5s cubic-bezier(0.19, 1, 0.22, 1);
+    z-index: 1002;
+    position: relative;
+    /* When collapsed, it's just in the flex flow at bottom */
 }
 
-.simple-search-bar {
+.bottom-sheet-container.active .glass-search-bar-container {
+    margin-bottom: 0;
+    margin-top: 0;
+    /* In expanded 'justify-content: flex-start' mode, this sits at the top (plus container padding) */
+}
+
+/* Glass Buttons Helper */
+.glass-search-input-box {
+    background: white;
+    /* Clean white for better contrast per design */
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 20px;
+    padding: 12px 20px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
+    height: 54px;
+    transition: all 0.3s ease;
+}
+
+/* Focus State */
+.bottom-sheet-container.active .glass-search-input-box {
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+    border-color: #3B82F6;
+}
+
+.glass-input {
+    border: none;
+    background: transparent;
+    font-size: 16px;
+    flex: 1;
+    color: #333;
+    outline: none;
 }
 
 .search-icon {
-    font-size: 18px;
+    font-size: 20px;
 }
 
-.simple-input-text {
-    flex: 1;
-    font-size: 16px;
-    color: #333;
-    font-weight: 500;
-}
-
-.simple-summary {
-    font-size: 12px;
-    color: #666;
-    background: #f3f4f6;
-    padding: 4px 8px;
-    border-radius: 4px;
-}
-
-.full-search-form {
-    padding-top: 5px;
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
-    padding-bottom: 20px;
-    overflow-y: auto;
-    /* Scroll if content is too long */
-}
-
-.input-group {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    padding: 0 16px;
-}
-
-.input-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    background: #f8f9fa;
-    padding: 8px 12px;
-    border-radius: 8px;
-}
-
-.input-row input {
-    border: none;
+.glass-filter-btn {
     background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+}
+
+.glass-filter-btn:hover {
+    opacity: 1;
+}
+
+/* Content Area - The White Sheet */
+.bottom-sheet-content {
     width: 100%;
-    outline: none;
-    font-size: 15px;
+    background: #F9FAFB;
+    /* Light grey background */
+    border-top-left-radius: 30px;
+    border-top-right-radius: 30px;
+    overflow-y: auto;
+    transition: all 0.5s cubic-bezier(0.19, 1, 0.22, 1);
+    box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.1);
+    pointer-events: auto;
+    padding: 20px;
+    padding-bottom: 100px;
+    /* Space for bottom nav */
+
+    /* Collapsed State: Hidden or minimal */
+    height: 0;
+    opacity: 0;
+    transform: translateY(20px);
 }
 
-.dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
+.bottom-sheet-container.active .bottom-sheet-content {
+    flex: 1;
+    /* Fill remaining space */
+    height: auto;
+    opacity: 1;
+    transform: translateY(0);
+    border-radius: 30px 30px 0 0;
+    /* Flat bottom */
+    margin-top: 20px;
+    /* Gap between search bar and content */
 }
 
-.start-dot {
-    background: #22C55E;
+/* Popular Points Horizontal List */
+.popular-points-section {
+    margin-top: 10px;
 }
 
-.goal-dot {
-    background: #EF4444;
-}
-
-.waypoint-dot {
-    background: #F59E0B;
-    width: 16px;
-    height: 16px;
-    color: white;
-    font-size: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-}
-
-.form-actions-mini {
-    display: flex;
-    justify-content: space-between;
-    margin-top: 5px;
-}
-
-.text-btn {
-    background: none;
-    border: none;
-    color: #4A6CF7;
-    cursor: pointer;
-    font-size: 14px;
-    padding: 5px;
-}
-
-.search-btn-primary {
-    background: #4A6CF7;
-    color: white;
-    border: none;
-    padding: 8px 16px;
-    border-radius: 6px;
-    font-weight: 600;
-    cursor: pointer;
-}
-
-.search-btn-primary:active {
-    background: #3256d6;
-}
-
-/* AI Results Section */
-.ai-result-section {
-    border-top: 1px solid #eee;
-    padding: 15px 16px 0;
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
-    animation: fadeIn 0.3s ease;
-}
-
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(5px);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-.result-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.theme-badge {
-    padding: 2px 8px;
-    border-radius: 12px;
-    font-size: 10px;
+.section-title {
+    font-size: 18px;
     font-weight: bold;
-    color: white;
-}
-
-.theme-badge.FISHING {
-    background: #3B82F6;
-}
-
-.theme-badge.CAMPING {
-    background: #10B981;
-}
-
-.theme-badge.GENERAL {
-    background: #6B7280;
-}
-
-.result-header h4 {
-    margin: 0;
-    font-size: 16px;
+    margin-bottom: 15px;
     color: #1F2937;
 }
 
-.checklist-box {
-    background: #F9FAFB;
-    padding: 12px;
-    border-radius: 8px;
-    border: 1px solid #E5E7EB;
-}
-
-.section-title-row {
+.horizontal-scroll-list {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 10px;
+    overflow-x: auto;
+    gap: 15px;
+    padding-bottom: 10px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    /* Firefox */
 }
 
-.checklist-box h5,
-.spots-box h5 {
-    margin: 0;
-    font-size: 14px;
-    color: #374151;
-    font-weight: 700;
+.horizontal-scroll-list::-webkit-scrollbar {
+    display: none;
+    /* Chrome/Safari */
 }
 
-.progress-text {
-    font-size: 12px;
-    color: #6B7280;
-    font-weight: 600;
-}
-
-.checklist-grid {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.check-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 8px 12px;
+.point-card {
+    min-width: 140px;
+    border-radius: 16px;
+    overflow: hidden;
     background: white;
-    border: 1px solid #E5E7EB;
-    border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
     cursor: pointer;
-    transition: all 0.2s;
+    transition: transform 0.2s;
 }
 
-.check-item:hover {
-    background: #F3F4F6;
+.point-card:active {
+    transform: scale(0.95);
 }
 
-.check-item.checked {
-    background: #F0FDF4;
-    /* Light Green */
-    border-color: #86EFAC;
+.card-thumb {
+    width: 100%;
+    height: 100px;
+    background-size: cover;
+    background-position: center;
 }
 
-.check-item span {
-    font-size: 14px;
-    color: #333;
-    font-weight: 500;
-}
-
-.check-item.checked span {
-    color: #15803D;
-    text-decoration: line-through;
-    opacity: 0.8;
-}
-
-.check-circle {
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    border: 2px solid #D1D5DB;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 12px;
-    color: white;
-    background: white;
-}
-
-.check-item.checked .check-circle {
-    background: #22C55E;
-    border-color: #22C55E;
-}
-
-/* Shopping Guide */
-.shopping-guide {
-    margin-top: 12px;
-    padding-top: 10px;
-    border-top: 1px dashed #E5E7EB;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.guide-label {
-    font-size: 12px;
-    color: #6B7280;
-    font-weight: 600;
-}
-
-.guide-keywords {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-}
-
-.keyword-tag {
-    background: #EFF6FF;
-    color: #2563EB;
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-size: 11px;
-    font-weight: 600;
-}
-
-.tags-container {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-}
-
-.check-tag {
-    background: white;
-    border: 1px solid #E5E7EB;
-    padding: 2px 8px;
-    border-radius: 4px;
-    font-size: 12px;
-    color: #374151;
-}
-
-.spots-box {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    margin-top: 5px;
-}
-
-.spot-option {
-    display: flex;
-    align-items: center;
-    gap: 10px;
+.card-info {
     padding: 10px;
+}
+
+.card-name {
+    display: block;
+    font-size: 14px;
+    font-weight: bold;
+    color: #111;
+    margin-bottom: 4px;
+}
+
+.card-desc {
+    display: block;
+    font-size: 11px;
+    color: #6B7280;
+}
+
+/* Bottom Navigation Bar */
+.bottom-nav-bar {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 90%;
+    max-width: 400px;
+    height: var(--bottom-nav-height);
+    background: white;
+    border-radius: 35px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    padding: 0 10px;
+    z-index: 1003;
+    pointer-events: auto;
+}
+
+.nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    position: relative;
+    padding: 8px 16px;
+    border-radius: 20px;
+    transition: all 0.3s;
+}
+
+.nav-item.active {
+    background: #EFF6FF;
+}
+
+.nav-item.active .nav-icon {
+    transform: scale(1.1);
+}
+
+.nav-icon {
+    font-size: 22px;
+    transition: transform 0.3s;
+}
+
+.nav-label {
+    font-size: 10px;
+    color: #6B7280;
+    font-weight: 500;
+}
+
+.nav-item.active .nav-label {
+    color: #2563EB;
+}
+
+.nav-badge {
+    position: absolute;
+    top: 5px;
+    right: 12px;
+    background: #EF4444;
+    color: white;
+    font-size: 10px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    border: 2px solid white;
+}
+
+/* Category Badges */
+.cat-badge {
+    flex: 1;
+    padding: 12px;
+    border-radius: 12px;
     border: 1px solid #E5E7EB;
-    border-radius: 8px;
+    background: white;
+    font-weight: 600;
+    color: #374151;
     cursor: pointer;
     transition: all 0.2s;
 }
 
-/* Fishing Info Box */
-.fishing-info-box {
+.cat-badge.active {
     background: #EFF6FF;
-    border: 1px solid #BFDBFE;
-    border-radius: 8px;
-    padding: 8px 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    margin-bottom: 5px;
+    border-color: #3B82F6;
+    color: #2563EB;
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.2);
 }
 
-.info-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.info-icon {
-    font-size: 16px;
-}
-
-.info-content {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 13px;
-}
-
-.info-label {
-    color: #1E40AF;
-    font-weight: 700;
-}
-
-.info-val {
-    color: #1D4ED8;
-    font-weight: 500;
-}
-
-.spot-option:hover {
-    background: #F3F4F6;
-}
-
-.spot-option.selected {
-    border-color: #8B5CF6;
-    background: #F5F3FF;
-}
-
-.checkbox-custom {
-    width: 20px;
-    height: 20px;
-    border-radius: 4px;
-    border: 2px solid #D1D5DB;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 14px;
-    color: white;
-}
-
-.spot-option.selected .checkbox-custom {
-    background: #8B5CF6;
-    border-color: #8B5CF6;
-}
-
-.spot-text {
-    display: flex;
-    flex-direction: column;
-}
-
-.spot-name {
-    font-weight: 600;
-    font-size: 14px;
-    color: #111;
-}
-
-.spot-type {
-    font-size: 12px;
-    color: #6B7280;
-}
-
+/* Action Buttons Updated */
 .confirm-trip-btn {
     width: 100%;
-    padding: 12px;
-    background: #8B5CF6;
-    /* Purple for Magic/AI feel */
-    color: white;
+    padding: 14px;
+    background: var(--primary-gradient);
     border: none;
-    border-radius: 8px;
+    border-radius: 12px;
+    color: white;
     font-weight: bold;
-    font-size: 15px;
+    font-size: 16px;
     cursor: pointer;
-    margin-top: 5px;
-}
-
-.confirm-trip-btn:hover {
-    background: #7C3AED;
-}
-
-.confirm-trip-btn:disabled {
-    background: #C4B5FD;
+    margin-top: 10px;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
 }
 
 .close-panel-btn {
-    background: none;
-    border: none;
-    color: #9CA3AF;
-    font-size: 13px;
-    align-self: center;
-    cursor: pointer;
-    margin-top: 5px;
-    text-decoration: underline;
-}
-
-.remove-wp-btn {
-    background: transparent;
-    border: none;
-    color: #999;
-    cursor: pointer;
-}
-
-.spots-box.stopover-box {
-    margin-top: 10px;
-    background-color: #f8fafc;
-    border: 1px dashed #cbd5e1;
-}
-
-.spot-option.stopover {
-    border-left: 3px solid #f59e0b;
-}
-
-.spot-reason {
-    display: block;
-    font-size: 11px;
-    color: #d97706;
-    margin-top: 2px;
-}
-
-/* New Checklist & Shopping UI */
-.check-item-container {
+    width: 100%;
+    padding: 12px;
     background: white;
     border: 1px solid #E5E7EB;
-    border-radius: 8px;
-    overflow: hidden;
-    transition: all 0.2s;
-}
-
-.check-item-container.completed {
-    border-color: #86EFAC;
-    background: #F0FDF4;
-}
-
-.check-item-header {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 12px;
-    cursor: pointer;
-}
-
-.check-label-group {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-}
-
-.check-name {
-    font-size: 14px;
-    font-weight: 500;
-    color: #1F2937;
-}
-
-.shop-badge {
-    font-size: 11px;
-    color: #4F46E5;
-    background: #EEF2FF;
-    padding: 2px 6px;
-    border-radius: 4px;
-    display: inline-block;
-    width: fit-content;
-    margin-top: 2px;
-    font-weight: 600;
-}
-
-.shop-list-dropdown {
-    background: #F9FAFB;
-    border-top: 1px dashed #E5E7EB;
-    padding: 5px;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-
-.shop-option {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 6px 10px;
-    background: white;
-    border: 1px solid #E5E7EB;
-    border-radius: 6px;
-    cursor: pointer;
-}
-
-.shop-option:hover {
-    background: #F3F4F6;
-}
-
-.shop-option.selected {
-    background: #F5F3FF;
-    border-color: #8B5CF6;
-}
-
-.shop-name-mini {
-    font-size: 13px;
-    color: #374151;
-}
-
-.add-btn-mini {
-    font-size: 11px;
-    font-weight: bold;
     color: #6B7280;
-}
-
-.shop-option.selected .add-btn-mini {
-    color: #7C3AED;
-}
-
-.order-controls {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 2px;
-    margin-left: 5px;
-}
-
-.order-controls button {
-    background: white;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    font-size: 8px;
-    width: 20px;
-    height: 16px;
+    border-radius: 12px;
+    margin-top: 10px;
     cursor: pointer;
-    color: #666;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0;
 }
 
-.order-controls button:hover {
-    background: #f0f0f0;
-    color: #333;
-}
-
-.order-badge {
-    font-size: 10px;
-    font-weight: bold;
-    color: #4A6CF7;
-    background: #EFF6FF;
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid #BFDBFE;
+/* Utilities */
+.simple-input-text {
+    font-size: 16px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
