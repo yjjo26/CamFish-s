@@ -1,11 +1,23 @@
 import { supabase } from '../lib/supabase';
+import type {
+    CampingGear as DBCampingGear,
+    CampingRecipe as DBCampingRecipe,
+    CampingSpotDetails as DBCampingSpotDetails,
+    Place,
+    AmenityDetails
+} from '../types/database.types';
+
+// ==============================================================================
+// Export Types
+// ==============================================================================
 
 export interface CampingGear {
     id: string;
     name: string;
     category: string;
-    isEssential: boolean;
-    reason?: string;
+    isEssentialForWinter: boolean;
+    description?: string;
+    reason?: string; // From spot recommendation
 }
 
 export interface CampingRecipe {
@@ -14,6 +26,7 @@ export interface CampingRecipe {
     ingredients: string[];
     method: string;
     difficulty: number;
+    bestSeason?: string;
 }
 
 export interface CampingSpotDetail {
@@ -34,15 +47,53 @@ export interface CampingSpotDetail {
 export interface CampAmenity {
     id: string;
     name: string;
-    type: 'STORE' | 'GAS' | 'RESTAURANT';
+    type: 'STORE' | 'GAS' | 'RESTAURANT' | 'CONVENIENCE_STORE';
     lat: number;
     lng: number;
     distance?: number;
     address?: string;
     phone?: string;
+    rating?: number;
+    operatingHours?: string;
+    signatureMenu?: string;
 }
 
-// Fetch details for a specific camping spot
+export interface CampingSpotInfo {
+    details: CampingSpotDetail | null;
+    recommendedGear: CampingGear[];
+    nearbyAmenities: CampAmenity[];
+    recommendedRecipes: CampingRecipe[];
+}
+
+// ==============================================================================
+// Season Utilities
+// ==============================================================================
+
+const SEASON_MAP: Record<number, string> = {
+    1: 'Winter', 2: 'Winter',
+    3: 'Spring', 4: 'Spring', 5: 'Spring',
+    6: 'Summer', 7: 'Summer', 8: 'Summer',
+    9: 'Autumn', 10: 'Autumn', 11: 'Autumn',
+    12: 'Winter'
+};
+
+export const getCurrentSeason = (): string => {
+    const month = new Date().getMonth() + 1;
+    return SEASON_MAP[month] || 'Summer';
+};
+
+export const isWinterSeason = (): boolean => {
+    const month = new Date().getMonth() + 1;
+    return month === 12 || month === 1 || month === 2;
+};
+
+// ==============================================================================
+// Data Fetching Functions
+// ==============================================================================
+
+/**
+ * 캠핑장 상세 정보 가져오기
+ */
 export const fetchCampingDetails = async (placeId: string): Promise<CampingSpotDetail | null> => {
     const { data, error } = await supabase
         .from('camping_spot_details')
@@ -51,28 +102,30 @@ export const fetchCampingDetails = async (placeId: string): Promise<CampingSpotD
         .single();
 
     if (error) {
-        // console.error('Error fetching camping details:', error);
+        console.error('Error fetching camping details:', error);
         return null;
     }
 
     return {
         placeId: data.place_id,
-        campType: data.camp_type,
-        floorType: data.floor_type,
+        campType: data.camp_type || 'AUTO_CAMPING',
+        floorType: data.floor_type || undefined,
         facilities: {
-            electricity: data.has_electricity,
-            hotWater: data.has_hot_water,
-            wifi: data.has_wifi,
-            petFriendly: data.is_pet_friendly
+            electricity: data.has_electricity || false,
+            hotWater: data.has_hot_water || false,
+            wifi: data.has_wifi || false,
+            petFriendly: data.is_pet_friendly || false
         },
-        price: data.base_fee,
-        checkIn: data.check_in_time,
-        checkOut: data.check_out_time
+        price: data.base_fee || undefined,
+        checkIn: data.check_in_time || undefined,
+        checkOut: data.check_out_time || undefined
     };
 };
 
+/**
+ * 특정 캠핑장에 추천되는 장비 목록 가져오기
+ */
 export const fetchRecommendedGear = async (placeId: string): Promise<CampingGear[]> => {
-    // Join spot_gear_recommendation -> camping_gear
     const { data, error } = await supabase
         .from('spot_gear_recommendation')
         .select(`
@@ -81,105 +134,232 @@ export const fetchRecommendedGear = async (placeId: string): Promise<CampingGear
                 id,
                 name,
                 category,
-                is_essential_for_winter
+                is_essential_for_winter,
+                description
             )
         `)
         .eq('place_id', placeId);
 
-    if (error || !data) return [];
+    if (error || !data) {
+        console.error('Error fetching recommended gear:', error);
+        return [];
+    }
 
     return data.map((item: any) => ({
         id: item.camping_gear.id,
         name: item.camping_gear.name,
-        category: item.camping_gear.category,
-        isEssential: item.camping_gear.is_essential_for_winter, // Using winter essential as a proxy for "Essential" trigger for now
+        category: item.camping_gear.category || 'UTILITY',
+        isEssentialForWinter: item.camping_gear.is_essential_for_winter || false,
+        description: item.camping_gear.description,
         reason: item.reason
     }));
 };
 
-export const fetchCampingRecipes = async (): Promise<CampingRecipe[]> => {
-    // Fetch random 3 recipes for now (or seasonal)
+/**
+ * 동계 필수 장비 목록 가져오기
+ */
+export const fetchWinterEssentialGear = async (): Promise<CampingGear[]> => {
     const { data, error } = await supabase
-        .from('camping_recipes')
+        .from('camping_gear')
         .select('*')
-        .limit(3);
+        .eq('is_essential_for_winter', true);
 
-    if (error || !data) return [];
+    if (error) {
+        console.error('Error fetching winter gear:', error);
+        return [];
+    }
 
-    return data.map((r: any) => ({
-        id: r.id,
-        name: r.name,
-        ingredients: r.ingredients || [],
-        method: r.cooking_method,
-        difficulty: r.difficulty_level
+    return data.map((gear: DBCampingGear) => ({
+        id: gear.id,
+        name: gear.name,
+        category: gear.category || 'UTILITY',
+        isEssentialForWinter: true,
+        description: gear.description || undefined
     }));
 };
 
-export const fetchNearbyAmenities = async (centerLat: number, centerLng: number, radiusKm: number = 20): Promise<CampAmenity[]> => {
-    // Similar to bait shops, but looking for generic amenities
-    // Real implementation should use PostGIS ST_DWithin
+/**
+ * 시즌에 맞는 캠핑 레시피 가져오기
+ */
+export const fetchCampingRecipes = async (season?: string): Promise<CampingRecipe[]> => {
+    const currentSeason = season || getCurrentSeason();
 
-    // Fetch 'amenity' type places
+    let query = supabase
+        .from('camping_recipes')
+        .select('*');
+
+    // Filter by season if specified
+    if (currentSeason) {
+        query = query.or(`best_season.eq.${currentSeason},best_season.is.null`);
+    }
+
+    const { data, error } = await query.limit(5);
+
+    if (error || !data) {
+        console.error('Error fetching recipes:', error);
+        return [];
+    }
+
+    return data.map((recipe: DBCampingRecipe) => ({
+        id: recipe.id,
+        name: recipe.name,
+        ingredients: recipe.ingredients || [],
+        method: recipe.cooking_method || '',
+        difficulty: recipe.difficulty_level || 1,
+        bestSeason: recipe.best_season || undefined
+    }));
+};
+
+/**
+ * 주변 편의시설 찾기 (마트, 주유소, 식당 등)
+ */
+export const fetchNearbyAmenities = async (
+    centerLat: number,
+    centerLng: number,
+    radiusKm: number = 20
+): Promise<CampAmenity[]> => {
     const { data, error } = await supabase
         .from('places')
         .select(`
             id,
             name,
-            lat,
-            lng,
             address,
-            contact_phone,
-            amenity_details ( category )
+            amenity_details (
+                category,
+                rating,
+                operating_hours,
+                signature_menu
+            )
         `)
         .eq('type', 'AMENITY');
 
-    if (error || !data) return [];
+    if (error || !data) {
+        console.error('Error fetching amenities:', error);
+        return [];
+    }
 
-    // Filter by Amenity Type (e.g., exclude Bait Shops if we only want regular stores)
-    // For now, let's include anything that is NOT a Bait Shop, or specific types like Convenience Store
-
+    // Filter out BAIT_SHOP (handled by fishingService)
     const amenities = data
         .filter((p: any) => {
-            // Check if amenity_details exists and is not empty array/object
-            const details = p.amenity_details;
-            // If details is an array (supa quirk sometimes) or object
-            const cat = Array.isArray(details) ? details[0]?.category : details?.category;
-            return cat !== 'BAIT_SHOP'; // Exclude bait shops for camping context maybe? or keep them?
+            const cat = p.amenity_details?.category;
+            return cat && cat !== 'BAIT_SHOP';
         })
         .map((place: any) => {
-            const dist = getDistanceFromLatLonInKm(centerLat, centerLng, place.lat, place.lng);
+            const categoryMap: Record<string, 'STORE' | 'GAS' | 'RESTAURANT' | 'CONVENIENCE_STORE'> = {
+                'CONVENIENCE_STORE': 'CONVENIENCE_STORE',
+                'GAS_STATION': 'GAS',
+                'RESTAURANT': 'RESTAURANT',
+                'TOILET': 'STORE'
+            };
+
             return {
                 id: place.id,
                 name: place.name,
-                type: 'STORE', // Generic for now, ideally map from amenity_details.category
-                lat: place.lat,
-                lng: place.lng,
+                type: categoryMap[place.amenity_details?.category] || 'STORE',
+                lat: 0, // Would come from PostGIS
+                lng: 0,
                 address: place.address,
-                phone: place.contact_phone,
-                distance: dist
+                rating: place.amenity_details?.rating,
+                operatingHours: place.amenity_details?.operating_hours,
+                signatureMenu: place.amenity_details?.signature_menu
             };
-        })
-        .filter((s: any) => s.distance <= radiusKm)
-        .sort((a: any, b: any) => a.distance - b.distance);
+        });
 
-    return amenities as CampAmenity[];
+    return amenities.slice(0, 15);
 };
 
-// Helper for distance (Duplicate from fishingService, could extract to utils)
-function getDistanceFromLatLonInKm(lat1: number, lon1: number, lat2: number, lon2: number) {
-    var R = 6371;
-    var dLat = deg2rad(lat2 - lat1);
-    var dLon = deg2rad(lon2 - lon1);
-    var a =
+/**
+ * 캠핑 포인트 종합 정보 가져오기
+ */
+export const fetchCampingSpotInfo = async (placeId: string, lat: number, lng: number): Promise<CampingSpotInfo> => {
+    // 1. Get camping spot details
+    const details = await fetchCampingDetails(placeId);
+
+    // 2. Get recommended gear for this spot + winter essentials if applicable
+    let gear = await fetchRecommendedGear(placeId);
+    if (isWinterSeason()) {
+        const winterGear = await fetchWinterEssentialGear();
+        const existingIds = new Set(gear.map(g => g.id));
+        const additionalWinterGear = winterGear.filter(g => !existingIds.has(g.id));
+        gear = [...gear, ...additionalWinterGear];
+    }
+
+    // 3. Get nearby amenities
+    const amenities = await fetchNearbyAmenities(lat, lng);
+
+    // 4. Get seasonal recipes
+    const recipes = await fetchCampingRecipes();
+
+    return {
+        details,
+        recommendedGear: gear,
+        nearbyAmenities: amenities,
+        recommendedRecipes: recipes
+    };
+};
+
+/**
+ * 카테고리별 장비 목록 가져오기
+ */
+export const fetchGearByCategory = async (category: string): Promise<CampingGear[]> => {
+    const { data, error } = await supabase
+        .from('camping_gear')
+        .select('*')
+        .eq('category', category);
+
+    if (error) {
+        console.error('Error fetching gear by category:', error);
+        return [];
+    }
+
+    return data.map((gear: DBCampingGear) => ({
+        id: gear.id,
+        name: gear.name,
+        category: gear.category || category,
+        isEssentialForWinter: gear.is_essential_for_winter || false,
+        description: gear.description || undefined
+    }));
+};
+
+/**
+ * 모든 캠핑 장비 목록 가져오기
+ */
+export const fetchAllGear = async (): Promise<CampingGear[]> => {
+    const { data, error } = await supabase
+        .from('camping_gear')
+        .select('*')
+        .order('category', { ascending: true });
+
+    if (error) {
+        console.error('Error fetching all gear:', error);
+        return [];
+    }
+
+    return data.map((gear: DBCampingGear) => ({
+        id: gear.id,
+        name: gear.name,
+        category: gear.category || 'UTILITY',
+        isEssentialForWinter: gear.is_essential_for_winter || false,
+        description: gear.description || undefined
+    }));
+};
+
+// ==============================================================================
+// Helper Functions
+// ==============================================================================
+
+function getDistanceFromLatLonInKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+    const R = 6371;
+    const dLat = deg2rad(lat2 - lat1);
+    const dLon = deg2rad(lon2 - lon1);
+    const a =
         Math.sin(dLat / 2) * Math.sin(dLat / 2) +
         Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
-        Math.sin(dLon / 2) * Math.sin(dLon / 2)
-        ;
-    var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    var d = R * c;
-    return d;
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
 }
 
-function deg2rad(deg: number) {
+function deg2rad(deg: number): number {
     return deg * (Math.PI / 180);
 }

@@ -1,309 +1,166 @@
--- =====================================================
--- CamFish Database Schema for Supabase
--- Based on: 낚시 캠핑 앱 데이터베이스 설계.md
--- =====================================================
+-- ==============================================================================
+-- CamFish 통합 플랫폼 마스터 스키마 및 시드 데이터
+-- 대상 시스템: Supabase (PostgreSQL 15+), PostGIS 확장 필수
+-- 작성일: 2026-01-27
+-- 설명: 낚시/캠핑 포인트 통합, 환경 데이터(기상/조석) 연동 구조, 메타데이터 정규화 포함
+-- ==============================================================================
 
--- ===================
--- 0. CLEANUP (DROP EXISTING)
--- ===================
-DROP VIEW IF EXISTS public.v_place_overview;
-DROP TABLE IF EXISTS public.amenity_details;
-DROP TABLE IF EXISTS public.route_waypoints;
-DROP TABLE IF EXISTS public.user_routes;
-DROP TABLE IF EXISTS public.spot_gear_recommendation;
-DROP TABLE IF EXISTS public.camping_spot_details;
-DROP TABLE IF EXISTS public.camping_recipes;
-DROP TABLE IF EXISTS public.camping_gear;
-DROP TABLE IF EXISTS public.spot_species_season;
-DROP TABLE IF EXISTS public.fishing_spot_details;
-DROP TABLE IF EXISTS public.species_bait_map;
-DROP TABLE IF EXISTS public.baits;
-DROP TABLE IF EXISTS public.fish_species;
-DROP TABLE IF EXISTS public.places CASCADE;
+--  확장 모듈 활성화 (Extensions)
+-- 지리 공간 연산을 위한 PostGIS 활성화
+CREATE EXTENSION IF NOT EXISTS postgis SCHEMA public;
 
-DROP TYPE IF EXISTS place_type;
-DROP TYPE IF EXISTS fishing_spot_type;
-DROP TYPE IF EXISTS camping_spot_type;
-DROP TYPE IF EXISTS amenity_type;
-DROP TYPE IF EXISTS tide_scale_enum;
-DROP TYPE IF EXISTS season_enum;
+-- [2] 테이블 정의 (Schema Definitions)
 
--- ===================
--- 1. EXTENSIONS
--- ===================
-CREATE EXTENSION IF NOT EXISTS postgis;
-CREATE EXTENSION IF NOT EXISTS pg_trgm;
-
--- ===================
--- 2. ENUM TYPES
--- ===================
-
--- 장소의 대분류
-CREATE TYPE place_type AS ENUM ('FISHING', 'CAMPING', 'AMENITY', 'TOURIST_SPOT');
-
--- 낚시 포인트 상세 유형
-CREATE TYPE fishing_spot_type AS ENUM ('BREAKWATER', 'BOAT', 'ROCKS', 'RESERVOIR', 'WHARF', 'SEASIDE');
-
--- 캠핑 포인트 상세 유형
-CREATE TYPE camping_spot_type AS ENUM ('AUTO_CAMPING', 'CAR_CAMPING', 'BACKPACKING', 'GLAMPING', 'CARAVAN');
-
--- 편의시설 유형
-CREATE TYPE amenity_type AS ENUM ('GAS_STATION', 'RESTAURANT', 'CONVENIENCE_STORE', 'BAIT_SHOP', 'TOILET');
-
--- 물때(Tide) 스케일
-CREATE TYPE tide_scale_enum AS ENUM ('1-MUL', '2-MUL', '3-MUL', '4-MUL', '5-MUL', '6-MUL', '7-MUL', '8-MUL', '9-MUL', '10-MUL', '11-MUL', '12-MUL', '13-MUL', '14-MUL', 'JOGEUM', 'MUSI');
-
--- 계절 분류
-CREATE TYPE season_enum AS ENUM ('SPRING', 'SUMMER', 'AUTUMN', 'WINTER');
-
--- ===================
--- 3. CORE TABLES
--- ===================
-
--- 통합 장소(Places) 슈퍼 테이블
-CREATE TABLE public.places (
+-- 2.1. 장소 테이블 (Places)
+-- 낚시, 캠핑, 편의시설 등 모든 위치 데이터를 통합 관리
+-- GEOGRAPHY 타입 사용으로 WGS84 좌표계 기반의 정밀 거리 계산 지원
+CREATE TABLE IF NOT EXISTS public.places (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name TEXT NOT NULL UNIQUE,
-    type place_type NOT NULL,
-    address TEXT,
-    description TEXT,
+    name TEXT NOT NULL, -- 장소명
+    type TEXT NOT NULL CHECK (type IN ('FISHING', 'CAMPING', 'AMENITY')), -- 장소 유형
+    address TEXT, -- 주소
+    location GEOGRAPHY(POINT, 4326) NOT NULL, -- 위경도 좌표 (Spatial Index 적용 대상)
+    description TEXT, -- 설명 (어종, 캠핑장 특징 등)
     
-    -- 공간 데이터: WGS 84 좌표계 사용
-    location GEOGRAPHY(POINT, 4326) NOT NULL,
+    -- API 연동을 위한 사전 계산 필드 (Automation용)
+    weather_grid_x INTEGER, -- 기상청 격자 X (n8n에서 계산 후 업데이트)
+    weather_grid_y INTEGER, -- 기상청 격자 Y
+    tide_station_code TEXT, -- 가장 가까운 조석 관측소 코드 (PostGIS KNN으로 매핑)
     
-    -- 편의를 위한 위경도 자동 생성 컬럼
-    lat DOUBLE PRECISION GENERATED ALWAYS AS (ST_Y(location::geometry)) STORED,
-    lng DOUBLE PRECISION GENERATED ALWAYS AS (ST_X(location::geometry)) STORED,
-    
-    thumbnail_url TEXT,
-    contact_phone TEXT,
-    
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT unique_place_name UNIQUE (name) -- 중복 방지
 );
 
--- 공간 검색 성능을 위한 GiST 인덱스
-CREATE INDEX idx_places_location ON public.places USING GIST (location);
--- 이름 검색을 위한 Trigram 인덱스
-CREATE INDEX idx_places_name ON public.places USING GIST (name gist_trgm_ops);
--- 타입 필터링을 위한 B-Tree 인덱스
-CREATE INDEX idx_places_type ON public.places (type);
+-- 공간 쿼리 성능 최적화를 위한 GIST 인덱스 생성
+CREATE INDEX IF NOT EXISTS places_location_idx ON public.places USING GIST (location);
 
--- ===================
--- 4. FISHING DOMAIN
--- ===================
-
--- 어종 정보 테이블
-CREATE TABLE public.fish_species (
+-- 2.2. 어종 정보 테이블 (Fish Species)
+-- 생물학적 특성 및 시즌 정보 저장
+CREATE TABLE IF NOT EXISTS public.fish_species (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    korean_name TEXT NOT NULL UNIQUE,
-    scientific_name TEXT,
-    habitat_description TEXT,
-    image_url TEXT
+    korean_name TEXT NOT NULL UNIQUE, -- 국문명 (예: 우럭, 광어)
+    scientific_name TEXT, -- 학명
+    habitat_description TEXT, -- 서식지 특성
+    active_season TEXT[], -- 주요 출몰 월/계절 (예: ['9월', '10월', '11월'])
+    cooking_recommendation TEXT, -- 추천 요리법
+    created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 미끼 정보 테이블
-CREATE TABLE public.baits (
+-- 2.3. 미끼 테이블 (Baits)
+CREATE TABLE IF NOT EXISTS public.baits (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name TEXT NOT NULL UNIQUE,
-    category TEXT -- 'LIVE', 'LURE', 'POWDER'
+    name TEXT NOT NULL UNIQUE, -- 미끼명 (예: 갯지렁이, 크릴)
+    category TEXT CHECK (category IN ('LIVE', 'LURE', 'POWDER', 'PRESERVED')), -- 생미끼, 루어 등
+    target_depth TEXT, -- 공략 수심층 (상층, 바닥층)
+    created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 어종-미끼 관계 테이블 (다대다)
-CREATE TABLE public.species_bait_map (
+-- 2.4. 어종-미끼 매핑 테이블 (Species-Bait Map)
+-- N:M 관계 해소: 어떤 물고기가 어떤 미끼를 좋아하는가?
+CREATE TABLE IF NOT EXISTS public.species_bait_map (
     species_id UUID REFERENCES public.fish_species(id) ON DELETE CASCADE,
     bait_id UUID REFERENCES public.baits(id) ON DELETE CASCADE,
-    effectiveness_score INTEGER DEFAULT 5,
+    effectiveness_rating INTEGER CHECK (effectiveness_rating BETWEEN 1 AND 5), -- 효과성 등급 (5가 최고)
     PRIMARY KEY (species_id, bait_id)
 );
 
--- 낚시 포인트 상세 정보
-CREATE TABLE public.fishing_spot_details (
-    place_id UUID PRIMARY KEY REFERENCES public.places(id) ON DELETE CASCADE,
-    spot_type fishing_spot_type NOT NULL,
-    
-    average_depth_m DECIMAL(4,1),
-    is_night_fishing_allowed BOOLEAN DEFAULT TRUE,
-    is_toilet_available BOOLEAN DEFAULT FALSE,
-    is_parking_available BOOLEAN DEFAULT TRUE,
-    
-    recommended_tides tide_scale_enum[],
-    legal_restrictions TEXT
-);
-
--- 포인트별 출몰 어종 및 시즌 매핑
-CREATE TABLE public.spot_species_season (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+-- 2.5. 장소-어종 매핑 테이블 (Location-Species Map)
+-- 장소별 출몰 어종 및 시즌 특이사항 기록
+CREATE TABLE IF NOT EXISTS public.location_species_map (
     place_id UUID REFERENCES public.places(id) ON DELETE CASCADE,
     species_id UUID REFERENCES public.fish_species(id) ON DELETE CASCADE,
-    season season_enum NOT NULL,
-    fishing_tip TEXT,
-    
-    UNIQUE(place_id, species_id, season)
+    season_specific TEXT, -- 해당 장소에서의 특정 시즌 (예: '가을 시즌 특수')
+    PRIMARY KEY (place_id, species_id)
 );
 
--- ===================
--- 5. CAMPING DOMAIN
--- ===================
-
--- 캠핑 장비 마스터
-CREATE TABLE public.camping_gear (
+-- 2.6. 캠핑 장비 테이블 (Camping Gear)
+CREATE TABLE IF NOT EXISTS public.camping_gear (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name TEXT NOT NULL,
-    category TEXT, -- 'SHELTER', 'SLEEPING', 'KITCHEN', 'UTILITY'
-    is_essential_for_winter BOOLEAN DEFAULT FALSE
+    name TEXT NOT NULL UNIQUE, -- 장비명 (예: 등유 난로)
+    category TEXT CHECK (category IN ('SLEEPING', 'KITCHEN', 'SHELTER', 'UTILITY')),
+    is_essential_for_winter BOOLEAN DEFAULT FALSE, -- 동계 필수 여부
+    description TEXT
 );
 
--- 캠핑 요리 레시피
-CREATE TABLE public.camping_recipes (
+-- 2.7. 캠핑 레시피 테이블 (Camping Recipes)
+CREATE TABLE IF NOT EXISTS public.camping_recipes (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name TEXT NOT NULL,
-    ingredients TEXT[],
-    cooking_method TEXT,
-    difficulty_level INTEGER CHECK (difficulty_level BETWEEN 1 AND 5)
+    name TEXT NOT NULL, -- 요리명 (예: 캠핑 닭꼬치)
+    ingredients TEXT[], -- 재료 목록 배열
+    cooking_method TEXT, -- 조리법 요약
+    difficulty_level INTEGER CHECK (difficulty_level BETWEEN 1 AND 5),
+    best_season TEXT -- 추천 계절 (예: Winter)
 );
 
--- 캠핑 포인트 상세 정보
-CREATE TABLE public.camping_spot_details (
-    place_id UUID PRIMARY KEY REFERENCES public.places(id) ON DELETE CASCADE,
-    camp_type camping_spot_type NOT NULL,
-    
-    floor_type TEXT, -- 'DECK', 'CRUSHED_STONE', 'GRASS', 'SAND'
-    
-    has_electricity BOOLEAN DEFAULT FALSE,
-    has_hot_water BOOLEAN DEFAULT FALSE,
-    has_wifi BOOLEAN DEFAULT FALSE,
-    is_pet_friendly BOOLEAN DEFAULT FALSE,
-    
-    base_fee INTEGER,
+-- 2.8. 편의시설 상세 테이블 (Amenity Details)
+-- places 테이블의 확장: 낚시점, 식당, 주유소 등 상세 정보
+CREATE TABLE IF NOT EXISTS public.amenity_details (
+    place_id UUID REFERENCES public.places(id) ON DELETE CASCADE PRIMARY KEY,
+    category TEXT CHECK (category IN ('BAIT_SHOP', 'RESTAURANT', 'GAS_STATION', 'CONVENIENCE_STORE', 'TOILET')),
+    rating NUMERIC(2,1), -- 평점 (5.0 만점)
+    operating_hours TEXT, -- 영업 시간
+    signature_menu TEXT -- 대표 메뉴 또는 판매 품목
+);
+
+-- 2.9. 캠핑장 상세 테이블 (Camping Spot Details)
+-- places 테이블의 확장: 캠핑장 전용 속성
+CREATE TABLE IF NOT EXISTS public.camping_spot_details (
+    place_id UUID REFERENCES public.places(id) ON DELETE CASCADE PRIMARY KEY,
+    camp_type TEXT CHECK (camp_type IN ('AUTO_CAMPING', 'GLAMPING', 'CAR_CAMPING', 'BACKPACKING')),
+    floor_type TEXT, -- 바닥 형태 (데크, 잔디, 파쇄석, 모래)
+    has_electricity BOOLEAN DEFAULT FALSE, -- 전기 사용 가능 여부
+    has_hot_water BOOLEAN DEFAULT FALSE, -- 온수 사용 가능 여부
+    has_wifi BOOLEAN DEFAULT FALSE, -- 와이파이 유무
+    is_pet_friendly BOOLEAN DEFAULT FALSE, -- 반려동물 동반 가능 여부
+    base_fee INTEGER, -- 기본 요금
     check_in_time TIME,
     check_out_time TIME
 );
 
--- 포인트별 필수/추천 장비 매핑
-CREATE TABLE public.spot_gear_recommendation (
+-- 2.10. 장소별 장비 추천 테이블 (Spot Gear Recommendation)
+-- 특정 장소의 환경(바람, 바닥 등)에 따른 장비 추천
+CREATE TABLE IF NOT EXISTS public.spot_gear_recommendation (
     place_id UUID REFERENCES public.places(id) ON DELETE CASCADE,
     gear_id UUID REFERENCES public.camping_gear(id) ON DELETE CASCADE,
-    reason TEXT,
+    reason TEXT, -- 추천 사유 (예: '강풍이 불어 팩 다운이 깊어야 함')
     PRIMARY KEY (place_id, gear_id)
 );
 
--- ===================
--- 6. ROUTE & AMENITY
--- ===================
+-- ==============================================================================
+-- [3] RLS 정책 (Row Level Security)
+-- ==============================================================================
 
--- 주변 편의시설 상세
-CREATE TABLE public.amenity_details (
-    place_id UUID PRIMARY KEY REFERENCES public.places(id) ON DELETE CASCADE,
-    category amenity_type NOT NULL,
-    
-    rating DECIMAL(2,1),
-    operating_hours TEXT,
-    signature_menu TEXT
-);
-
--- 사용자 경로 (나만의 코스)
-CREATE TABLE public.user_routes (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID DEFAULT auth.uid(), -- If auth is enabled later
-    title TEXT NOT NULL,
-    description TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- 경로 경유지
-CREATE TABLE public.route_waypoints (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    route_id UUID REFERENCES public.user_routes(id) ON DELETE CASCADE,
-    place_id UUID REFERENCES public.places(id) ON DELETE SET NULL,
-    order_index INTEGER NOT NULL,
-    memo TEXT
-);
-
--- ===================
--- 7. DATABASE VIEW
--- ===================
-
-CREATE OR REPLACE VIEW public.v_place_overview AS
-SELECT 
-    p.id,
-    p.name,
-    p.type,
-    p.lat,
-    p.lng,
-    p.description,
-    fsd.spot_type AS fishing_type,
-    (
-        SELECT string_agg(fs.korean_name, ', ')
-        FROM public.spot_species_season sss
-        JOIN public.fish_species fs ON sss.species_id = fs.id
-        WHERE sss.place_id = p.id
-    ) AS target_species,
-    csd.camp_type,
-    csd.has_electricity,
-    csd.is_pet_friendly
-FROM 
-    public.places p
-LEFT JOIN 
-    public.fishing_spot_details fsd ON p.id = fsd.place_id
-LEFT JOIN 
-    public.camping_spot_details csd ON p.id = csd.place_id;
-
--- ===================
--- 8. SECURITY (RLS)
--- ===================
-
--- Places: Public Read
 ALTER TABLE public.places ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public read access for places" ON public.places FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read access for places" ON public.places FOR SELECT USING (true);
 
--- Fish Species: Public Read
 ALTER TABLE public.fish_species ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public read access for fish_species" ON public.fish_species FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read access for fish_species" ON public.fish_species FOR SELECT USING (true);
 
--- Baits: Public Read
 ALTER TABLE public.baits ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public read access for baits" ON public.baits FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read access for baits" ON public.baits FOR SELECT USING (true);
 
--- Species-Bait Map: Public Read
 ALTER TABLE public.species_bait_map ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public read access for species_bait_map" ON public.species_bait_map FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read access for species_bait_map" ON public.species_bait_map FOR SELECT USING (true);
 
--- Fishing Spot Details: Public Read
-ALTER TABLE public.fishing_spot_details ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public read access for fishing_spot_details" ON public.fishing_spot_details FOR SELECT USING (true);
+ALTER TABLE public.location_species_map ENABLE ROW LEVEL SECURITY;
+CREATE POLICY IF NOT EXISTS "Public read access for location_species_map" ON public.location_species_map FOR SELECT USING (true);
 
--- Spot Species Season: Public Read
-ALTER TABLE public.spot_species_season ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public read access for spot_species_season" ON public.spot_species_season FOR SELECT USING (true);
-
--- Camping Gear: Public Read
 ALTER TABLE public.camping_gear ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public read access for camping_gear" ON public.camping_gear FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read access for camping_gear" ON public.camping_gear FOR SELECT USING (true);
 
--- Camping Recipes: Public Read
 ALTER TABLE public.camping_recipes ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public read access for camping_recipes" ON public.camping_recipes FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read access for camping_recipes" ON public.camping_recipes FOR SELECT USING (true);
 
--- Camping Spot Details: Public Read
-ALTER TABLE public.camping_spot_details ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public read access for camping_spot_details" ON public.camping_spot_details FOR SELECT USING (true);
-
--- Spot Gear Recommendation: Public Read
-ALTER TABLE public.spot_gear_recommendation ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public read access for spot_gear_recommendation" ON public.spot_gear_recommendation FOR SELECT USING (true);
-
--- Amenity Details: Public Read
 ALTER TABLE public.amenity_details ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public read access for amenity_details" ON public.amenity_details FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read access for amenity_details" ON public.amenity_details FOR SELECT USING (true);
 
--- Note: user_routes and route_waypoints should be private (authenticated user only), 
--- but for now leaving as-is or default deny if RLS enabled.
--- Let's enable RLS for them but no policy yet (or auth policy if we had auth set up).
--- Assuming anon for now for simplicity in this dev phase, let's allow all for dev.
-ALTER TABLE public.user_routes ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public read/write access for user_routes for dev" ON public.user_routes USING (true);
+ALTER TABLE public.camping_spot_details ENABLE ROW LEVEL SECURITY;
+CREATE POLICY IF NOT EXISTS "Public read access for camping_spot_details" ON public.camping_spot_details FOR SELECT USING (true);
 
-ALTER TABLE public.route_waypoints ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public read/write access for route_waypoints for dev" ON public.route_waypoints USING (true);
+ALTER TABLE public.spot_gear_recommendation ENABLE ROW LEVEL SECURITY;
+CREATE POLICY IF NOT EXISTS "Public read access for spot_gear_recommendation" ON public.spot_gear_recommendation FOR SELECT USING (true);
 
+-- ==============================================================================
+-- END OF SCHEMA
+-- ==============================================================================

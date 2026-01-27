@@ -36,6 +36,12 @@ const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 // Using Gemini 1.5 Flash for speed/efficiency/availability
 const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 import { supabase } from '../lib/supabase';
+import { fetchSeasonalSpecies, fetchBaitsBySpecies, FishSpecies, Bait } from './fishingService';
+import { fetchCampingRecipes, fetchWinterEssentialGear, CampingGear, CampingRecipe } from './campingService';
+
+// ==============================================================================
+// Database Helper Functions
+// ==============================================================================
 
 // Helper to find verified shops from DB
 const findVerifiedShops = async (region: string, category: string): Promise<any[]> => {
@@ -43,8 +49,8 @@ const findVerifiedShops = async (region: string, category: string): Promise<any[
         const { data, error } = await supabase
             .from('places')
             .select('*')
-            .ilike('region', `%${region}%`)
-            .eq('category', category)
+            .ilike('name', `%${region}%`)
+            .eq('type', 'AMENITY')
             .limit(3);
 
         if (error) {
@@ -57,6 +63,110 @@ const findVerifiedShops = async (region: string, category: string): Promise<any[
         return [];
     }
 };
+
+/**
+ * 현재 시즌에 맞는 어종 추천 데이터 가져오기
+ */
+export const getSeasonalFishingRecommendations = async (): Promise<{
+    species: FishSpecies[];
+    baits: Bait[];
+}> => {
+    const species = await fetchSeasonalSpecies();
+
+    // Get baits for first 3 species
+    const topSpecies = species.slice(0, 3);
+    const allBaits: Bait[] = [];
+
+    for (const sp of topSpecies) {
+        const baits = await fetchBaitsBySpecies(sp.id);
+        baits.forEach(b => {
+            if (!allBaits.find(existing => existing.id === b.id)) {
+                allBaits.push(b);
+            }
+        });
+    }
+
+    return { species, baits: allBaits };
+};
+
+/**
+ * 캠핑 추천 데이터 가져오기 (레시피, 장비)
+ */
+export const getCampingRecommendations = async (): Promise<{
+    recipes: CampingRecipe[];
+    winterGear: CampingGear[];
+}> => {
+    const recipes = await fetchCampingRecipes();
+    const winterGear = await fetchWinterEssentialGear();
+
+    return { recipes, winterGear };
+};
+
+/**
+ * 장소 이름으로 ID 조회
+ */
+export const findPlaceByName = async (name: string): Promise<string | null> => {
+    const { data, error } = await supabase
+        .from('places')
+        .select('id')
+        .ilike('name', `%${name}%`)
+        .limit(1)
+        .single();
+
+    if (error || !data) return null;
+    return data.id;
+};
+
+/**
+ * 특정 장소의 추천 어종 목록 조회
+ */
+export const getLocationSpecies = async (placeName: string): Promise<string[]> => {
+    const { data, error } = await supabase
+        .from('places')
+        .select(`
+            id,
+            location_species_map (
+                fish_species (
+                    korean_name
+                )
+            )
+        `)
+        .ilike('name', `%${placeName}%`)
+        .limit(1)
+        .single();
+
+    if (error || !data) return [];
+
+    return (data as any).location_species_map?.map((m: any) => m.fish_species?.korean_name).filter(Boolean) || [];
+};
+
+/**
+ * 특정 캠핑장의 추천 장비 조회
+ */
+export const getCampingSpotGear = async (placeName: string): Promise<{ name: string; reason: string }[]> => {
+    const { data, error } = await supabase
+        .from('places')
+        .select(`
+            id,
+            spot_gear_recommendation (
+                reason,
+                camping_gear (
+                    name
+                )
+            )
+        `)
+        .ilike('name', `%${placeName}%`)
+        .limit(1)
+        .single();
+
+    if (error || !data) return [];
+
+    return (data as any).spot_gear_recommendation?.map((r: any) => ({
+        name: r.camping_gear?.name || '',
+        reason: r.reason || ''
+    })).filter((g: any) => g.name) || [];
+};
+
 
 // Fallback Mock Logic (defnied first for hoisting)
 const mockAnalyze = (query: string): TripAnalysisResult => {
