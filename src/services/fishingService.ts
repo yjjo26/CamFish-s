@@ -1,10 +1,7 @@
 import { supabase } from '../lib/supabase';
 import type {
     FishSpecies as DBFishSpecies,
-    Bait as DBBait,
-    Place,
-    SpeciesBaitMap,
-    LocationSpeciesMap
+    Bait as DBBait
 } from '../types/database.types';
 
 // ==============================================================================
@@ -207,11 +204,12 @@ export const fetchBaitsForMultipleSpecies = async (speciesIds: string[]): Promis
 
 /**
  * 주변 낚시점 찾기
+ * TODO: PostGIS ST_Distance 구현 시 좌표 파라미터 활용 예정
  */
 export const fetchBaitShops = async (
-    centerLat: number,
-    centerLng: number,
-    radiusKm: number = 20
+    _centerLat: number,
+    _centerLng: number,
+    _radiusKm: number = 20
 ): Promise<BaitShop[]> => {
     const { data, error } = await supabase
         .from('places')

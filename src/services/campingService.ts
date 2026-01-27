@@ -1,10 +1,7 @@
 import { supabase } from '../lib/supabase';
 import type {
     CampingGear as DBCampingGear,
-    CampingRecipe as DBCampingRecipe,
-    CampingSpotDetails as DBCampingSpotDetails,
-    Place,
-    AmenityDetails
+    CampingRecipe as DBCampingRecipe
 } from '../types/database.types';
 
 // ==============================================================================
@@ -212,11 +209,12 @@ export const fetchCampingRecipes = async (season?: string): Promise<CampingRecip
 
 /**
  * 주변 편의시설 찾기 (마트, 주유소, 식당 등)
+ * TODO: PostGIS ST_Distance 구현 시 좌표 파라미터 활용 예정
  */
 export const fetchNearbyAmenities = async (
-    centerLat: number,
-    centerLng: number,
-    radiusKm: number = 20
+    _centerLat: number,
+    _centerLng: number,
+    _radiusKm: number = 20
 ): Promise<CampAmenity[]> => {
     const { data, error } = await supabase
         .from('places')
@@ -345,10 +343,10 @@ export const fetchAllGear = async (): Promise<CampingGear[]> => {
 };
 
 // ==============================================================================
-// Helper Functions
+// Helper Functions (exported for future use in distance calculations)
 // ==============================================================================
 
-function getDistanceFromLatLonInKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+export function getDistanceFromLatLonInKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
     const R = 6371;
     const dLat = deg2rad(lat2 - lat1);
     const dLon = deg2rad(lon2 - lon1);
@@ -363,3 +361,4 @@ function getDistanceFromLatLonInKm(lat1: number, lon1: number, lat2: number, lon
 function deg2rad(deg: number): number {
     return deg * (Math.PI / 180);
 }
+
