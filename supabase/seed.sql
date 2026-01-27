@@ -449,5 +449,206 @@ WHERE s.korean_name = '광어' AND b.name = '다운샷 웜 (Downshot Worm)'
 ON CONFLICT DO NOTHING;
 
 -- ==============================================================================
+-- [5] 장소-어종 매핑 (Location-Species Mapping)
+-- 낚시 포인트에서 잡을 수 있는 어종 연결
+-- ==============================================================================
+
+-- 을왕리 선녀바위
+INSERT INTO public.location_species_map (place_id, species_id, season_specific)
+SELECT p.id, s.id, '연중 (봄/가을 피크)'
+FROM public.places p, public.fish_species s
+WHERE p.name = '을왕리 선녀바위' AND s.korean_name = '우럭'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO public.location_species_map (place_id, species_id, season_specific)
+SELECT p.id, s.id, '여름철'
+FROM public.places p, public.fish_species s
+WHERE p.name = '을왕리 선녀바위' AND s.korean_name = '광어'
+ON CONFLICT DO NOTHING;
+
+-- 궁평항 피싱피어
+INSERT INTO public.location_species_map (place_id, species_id, season_specific)
+SELECT p.id, s.id, '가을철 (9-11월)'
+FROM public.places p, public.fish_species s
+WHERE p.name = '궁평항 피싱피어' AND s.korean_name = '망둥어'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO public.location_species_map (place_id, species_id, season_specific)
+SELECT p.id, s.id, '연중'
+FROM public.places p, public.fish_species s
+WHERE p.name = '궁평항 피싱피어' AND s.korean_name = '우럭'
+ON CONFLICT DO NOTHING;
+
+-- 시화방조제
+INSERT INTO public.location_species_map (place_id, species_id, season_specific)
+SELECT p.id, s.id, '연중'
+FROM public.places p, public.fish_species s
+WHERE p.name = '시화방조제' AND s.korean_name = '우럭'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO public.location_species_map (place_id, species_id, season_specific)
+SELECT p.id, s.id, '가을철'
+FROM public.places p, public.fish_species s
+WHERE p.name = '시화방조제' AND s.korean_name = '삼치'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO public.location_species_map (place_id, species_id, season_specific)
+SELECT p.id, s.id, '여름철'
+FROM public.places p, public.fish_species s
+WHERE p.name = '시화방조제' AND s.korean_name = '광어'
+ON CONFLICT DO NOTHING;
+
+-- 무의도 광명항
+INSERT INTO public.location_species_map (place_id, species_id, season_specific)
+SELECT p.id, s.id, '봄/가을'
+FROM public.places p, public.fish_species s
+WHERE p.name = '무의도 광명항' AND s.korean_name = '갑오징어'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO public.location_species_map (place_id, species_id, season_specific)
+SELECT p.id, s.id, '가을철 (9-11월)'
+FROM public.places p, public.fish_species s
+WHERE p.name = '무의도 광명항' AND s.korean_name = '쭈꾸미'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO public.location_species_map (place_id, species_id, season_specific)
+SELECT p.id, s.id, '여름철'
+FROM public.places p, public.fish_species s
+WHERE p.name = '무의도 광명항' AND s.korean_name = '광어'
+ON CONFLICT DO NOTHING;
+
+-- 보령 대천항
+INSERT INTO public.location_species_map (place_id, species_id, season_specific)
+SELECT p.id, s.id, '가을철 메카 (9-11월)'
+FROM public.places p, public.fish_species s
+WHERE p.name = '보령 대천항' AND s.korean_name = '쭈꾸미'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO public.location_species_map (place_id, species_id, season_specific)
+SELECT p.id, s.id, '봄/가을'
+FROM public.places p, public.fish_species s
+WHERE p.name = '보령 대천항' AND s.korean_name = '갑오징어'
+ON CONFLICT DO NOTHING;
+
+-- 주문진항 방파제
+INSERT INTO public.location_species_map (place_id, species_id, season_specific)
+SELECT p.id, s.id, '가을/겨울철'
+FROM public.places p, public.fish_species s
+WHERE p.name = '주문진항 방파제' AND s.korean_name = '감성돔'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO public.location_species_map (place_id, species_id, season_specific)
+SELECT p.id, s.id, '가을철'
+FROM public.places p, public.fish_species s
+WHERE p.name = '주문진항 방파제' AND s.korean_name = '고등어'
+ON CONFLICT DO NOTHING;
+
+-- 목포 북항
+INSERT INTO public.location_species_map (place_id, species_id, season_specific)
+SELECT p.id, s.id, '가을철 밤낚시'
+FROM public.places p, public.fish_species s
+WHERE p.name = '목포 북항' AND s.korean_name = '갈치'
+ON CONFLICT DO NOTHING;
+
+-- 부산 기장 죽성성당
+INSERT INTO public.location_species_map (place_id, species_id, season_specific)
+SELECT p.id, s.id, '여름철'
+FROM public.places p, public.fish_species s
+WHERE p.name = '부산 기장 죽성성당' AND s.korean_name = '농어'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO public.location_species_map (place_id, species_id, season_specific)
+SELECT p.id, s.id, '가을철'
+FROM public.places p, public.fish_species s
+WHERE p.name = '부산 기장 죽성성당' AND s.korean_name = '무늬오징어'
+ON CONFLICT DO NOTHING;
+
+-- 여수 국동항
+INSERT INTO public.location_species_map (place_id, species_id, season_specific)
+SELECT p.id, s.id, '봄/가을 성지'
+FROM public.places p, public.fish_species s
+WHERE p.name = '여수 국동항' AND s.korean_name = '갑오징어'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO public.location_species_map (place_id, species_id, season_specific)
+SELECT p.id, s.id, '가을철'
+FROM public.places p, public.fish_species s
+WHERE p.name = '여수 국동항' AND s.korean_name = '쭈꾸미'
+ON CONFLICT DO NOTHING;
+
+-- 제주 차귀도 포구
+INSERT INTO public.location_species_map (place_id, species_id, season_specific)
+SELECT p.id, s.id, '여름철'
+FROM public.places p, public.fish_species s
+WHERE p.name = '제주 차귀도 포구' AND s.korean_name = '돌돔'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO public.location_species_map (place_id, species_id, season_specific)
+SELECT p.id, s.id, '가을철'
+FROM public.places p, public.fish_species s
+WHERE p.name = '제주 차귀도 포구' AND s.korean_name = '고등어'
+ON CONFLICT DO NOTHING;
+
+-- 통영 척포방파제
+INSERT INTO public.location_species_map (place_id, species_id, season_specific)
+SELECT p.id, s.id, '겨울~봄 밤낚시'
+FROM public.places p, public.fish_species s
+WHERE p.name = '통영 척포방파제' AND s.korean_name = '볼락'
+ON CONFLICT DO NOTHING;
+
+-- 거제 지세포항
+INSERT INTO public.location_species_map (place_id, species_id, season_specific)
+SELECT p.id, s.id, '봄~가을'
+FROM public.places p, public.fish_species s
+WHERE p.name = '거제 지세포항' AND s.korean_name = '참돔'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO public.location_species_map (place_id, species_id, season_specific)
+SELECT p.id, s.id, '가을/겨울'
+FROM public.places p, public.fish_species s
+WHERE p.name = '거제 지세포항' AND s.korean_name = '감성돔'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO public.location_species_map (place_id, species_id, season_specific)
+SELECT p.id, s.id, '가을철'
+FROM public.places p, public.fish_species s
+WHERE p.name = '거제 지세포항' AND s.korean_name = '무늬오징어'
+ON CONFLICT DO NOTHING;
+
+-- 남해 미조항
+INSERT INTO public.location_species_map (place_id, species_id, season_specific)
+SELECT p.id, s.id, '가을/겨울 성지'
+FROM public.places p, public.fish_species s
+WHERE p.name = '남해 미조항' AND s.korean_name = '감성돔'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO public.location_species_map (place_id, species_id, season_specific)
+SELECT p.id, s.id, '겨울~봄'
+FROM public.places p, public.fish_species s
+WHERE p.name = '남해 미조항' AND s.korean_name = '볼락'
+ON CONFLICT DO NOTHING;
+
+-- 예당저수지 (민물)
+INSERT INTO public.location_species_map (place_id, species_id, season_specific)
+SELECT p.id, s.id, '봄/가을'
+FROM public.places p, public.fish_species s
+WHERE p.name = '예당저수지' AND s.korean_name = '토종붕어'
+ON CONFLICT DO NOTHING;
+
+-- 안동호 (민물)
+INSERT INTO public.location_species_map (place_id, species_id, season_specific)
+SELECT p.id, s.id, '봄~가을'
+FROM public.places p, public.fish_species s
+WHERE p.name = '안동호' AND s.korean_name = '배스'
+ON CONFLICT DO NOTHING;
+
+-- 춘천 의암호 (민물)
+INSERT INTO public.location_species_map (place_id, species_id, season_specific)
+SELECT p.id, s.id, '봄~가을'
+FROM public.places p, public.fish_species s
+WHERE p.name = '춘천 의암호' AND s.korean_name = '배스'
+ON CONFLICT DO NOTHING;
+
+-- ==============================================================================
 -- END OF SCRIPT
 -- ==============================================================================
