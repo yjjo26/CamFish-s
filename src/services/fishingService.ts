@@ -304,3 +304,17 @@ export const searchSpecies = async (query: string): Promise<FishSpecies[]> => {
 
 export const fetchFishSpecies = fetchSpeciesByLocation;
 export const fetchBaits = fetchBaitsForMultipleSpecies;
+
+// Fetch all verified spots for AI Context Injection
+export const fetchVerifiedSpots = async () => {
+    const { data, error } = await supabase
+        .from('places')
+        .select('id, name, type, lat, lng, image_url, description')
+        .in('type', ['FISHING', 'CAMPING']);
+
+    if (error) {
+        console.error('Error fetching verified spots:', error);
+        return [];
+    }
+    return data || [];
+};

@@ -2,20 +2,24 @@ import { useEffect, useRef } from 'react';
 
 interface MapProps {
     onMapLoad?: (map: naver.maps.Map) => void;
+    onMapClick?: () => void;
 }
 
-const Map = ({ onMapLoad }: MapProps) => {
+const Map = ({ onMapLoad, onMapClick }: MapProps) => {
     const mapElement = useRef<HTMLDivElement | null>(null);
+    const mapInstance = useRef<naver.maps.Map | null>(null);
+    const clickListenerRef = useRef<any>(null);
 
+    // 1. Initialize Map (Run ONCE)
     useEffect(() => {
         const { naver } = window;
-        if (!mapElement.current || !naver) return;
+        if (!mapElement.current || !naver || mapInstance.current) return;
 
         // Initialize map centered on Seoul City Hall as default
         const defaultLocation = new naver.maps.LatLng(37.5665, 126.9780);
         const mapOptions = {
             center: defaultLocation,
-            zoom: 14,
+            zoom: 12, // 시/군/구보다 한 단계 확대 레벨
             zoomControl: true,
             zoomControlOptions: {
                 position: naver.maps.Position.TOP_RIGHT,
@@ -26,6 +30,7 @@ const Map = ({ onMapLoad }: MapProps) => {
             draggable: true,
         };
         const map = new naver.maps.Map(mapElement.current, mapOptions);
+        mapInstance.current = map;
 
         // Try to get user's current location
         if (navigator.geolocation) {
@@ -36,7 +41,7 @@ const Map = ({ onMapLoad }: MapProps) => {
                     const userLocation = new naver.maps.LatLng(lat, lng);
 
                     map.setCenter(userLocation);
-                    map.setZoom(15, true); // Zoom to street level (Eup/Myeon/Dong)
+                    map.setZoom(12, true); // 시/군/구보다 한 단계 확대 레벨
 
                     // Optional: Add a marker for "My Location"
                     new naver.maps.Marker({
@@ -58,7 +63,31 @@ const Map = ({ onMapLoad }: MapProps) => {
         if (onMapLoad) {
             onMapLoad(map);
         }
-    }, [onMapLoad]);
+    }, []); // Empty dependency array ensures this runs only once on mount
+
+    // 2. Handle Click Listener Update independently
+    useEffect(() => {
+        if (!mapInstance.current || !onMapClick) return;
+
+        // Remove previous listener if exists
+        if (clickListenerRef.current) {
+            // @ts-ignore
+            naver.maps.Event.removeListener(clickListenerRef.current);
+        }
+
+        // Add new listener
+        clickListenerRef.current = naver.maps.Event.addListener(mapInstance.current, 'click', () => {
+            onMapClick();
+        });
+
+        // Cleanup on unmount or prop change
+        return () => {
+            if (clickListenerRef.current) {
+                // @ts-ignore
+                naver.maps.Event.removeListener(clickListenerRef.current);
+            }
+        };
+    }, [onMapClick]);
 
     return (
         <div

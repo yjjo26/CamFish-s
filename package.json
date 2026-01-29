@@ -23,6 +23,8 @@
     "@types/react": "^18.2.66",
     "@types/react-dom": "^18.2.22",
     "@vitejs/plugin-react": "^4.2.1",
+    "dotenv": "^17.2.3",
+    "ts-node": "^10.9.2",
     "typescript": "^5.2.2",
     "vite": "^5.2.0"
   }

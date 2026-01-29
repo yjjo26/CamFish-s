@@ -28,13 +28,20 @@ export interface TripAnalysisResult {
             name: string;
             address: string;
             description?: string; // Menu, Price, etc.
+            lat?: number;
+            lng?: number;
         }[];
     }[];
+    // Hybrid Search Fields
+    destinationId?: string;
+    destinationCoords?: { lat: number; lng: number };
 }
 
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 // Using Gemini 1.5 Flash for speed/efficiency/availability
+// Using Gemini 1.5 Flash for speed/efficiency/availability
 const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+const GEMINI_3_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${GEMINI_API_KEY}`;
 import { supabase } from '../lib/supabase';
 import { fetchSeasonalSpecies, fetchBaitsBySpecies, FishSpecies, Bait } from './fishingService';
 import { fetchCampingRecipes, fetchWinterEssentialGear, CampingGear, CampingRecipe } from './campingService';
@@ -179,7 +186,7 @@ const mockAnalyze = (query: string): TripAnalysisResult => {
         recommendedSpots: [],
         recommendedStopovers: [],
         checklistDetails: [
-            { item: '물/음료', category: '식품', recommendedShops: [{ name: '이마트24 인천공항점', address: '인천 중구 공항로 271', description: '생수 1000원~' }] }
+            { item: '물/음료', category: '식품', recommendedShops: [{ name: '이마트24 인천공항점', address: '인천 중구 공항로 271', description: '생수 1000원~', lat: 37.4601908, lng: 126.438507 }] }
         ]
     };
 
@@ -207,63 +214,43 @@ const mockAnalyze = (query: string): TripAnalysisResult => {
     return result;
 }
 
-export const analyzeTripIntent = async (query: string, startLocation: string = 'Seoul'): Promise<TripAnalysisResult> => {
+export const analyzeTripIntent = async (query: string, startLocation: string = 'Seoul', knownSpots: any[] = []): Promise<TripAnalysisResult> => {
     if (!GEMINI_API_KEY) {
         console.warn("Gemini API Key is missing! Falling back to mock.");
         return mockAnalyze(query);
     }
 
     try {
-        const prompt = `
-        You are an expert outdoor travel guide (Fishing & Camping specialist).
-        Analyze the user's input: "${query}".
-        The user is traveling from: "${startLocation}".
-        
-        1. Extract the Destination.
-        2. Determine the Theme: 'FISHING', 'CAMPING', or 'GENERAL'.
-        3. Generate a COMPREHENSIVE Itemized Checklist (at least 10 items).
-           - Group items simply by category if possible.
-           - For key items (e.g. Meat, Charcoal, Bait, Water, Snacks), suggest a specific REAL shop or market near the destination or start location.
-           - CRITICAL: Do NOT say "Nearby Convenience Store". You MUST provide a specific Brand & Branch Name (e.g. "CU Sokcho-Beach Branch", "Emart Sokcho").
-           - Even if you are unsure of the exact closest one, provide a REAL famous chain store in that city (e.g. "Lotte Mart Incheon Branch").
-           - Provide the **Real Road Name Address** (e.g. "123, Beach-ro, Sokcho-si").
-           - For Restaurants or Food Shops, provide a **Representative Menu & Approx Price** (e.g. "Pork Belly 180g (15,000 KRW)").
-           - This is required so we can find it on the map.
-        4. Suggest 2-3 stopovers/waypoint recommendations between "${startLocation}" and the destination.
-           - Suitable for a rest stop, famous snack, or scenic view along the route.
+        const spotListStr = knownSpots.length > 0
+            ? `\nVERIFIED SPOTS DATABASE (Prioritize these if relevant):\n${knownSpots.map(s => `- ${s.name} (${s.type})`).join('\n')}\n`
+            : "";
 
+        const prompt = `
+        You are an expert outdoor travel guide (Fishing & Camping).
+        Analyze user input: "${query}" from "${startLocation}".
         
-        [IF THEME IS FISHING]
-        4. Identify the DOMINANT Fish Species caught in this specific location (e.g. "Flatfish", "Rockfish").
-        5. Recommend the BEST BAIT specifically for these species (e.g. "Lugworm", "Squid slices").
+        ${spotListStr}
+
+        1. Extract Destination. If the query matches a "VERIFIED SPOT", use its EXACT NAME.
+        2. Determine Theme ('FISHING', 'CAMPING', 'GENERAL').
+        3. Generate Checklist (10+ items). Suggest REAL shops near destination (Name, Address).
+        4. Suggest Stopovers.
         
-        6. Suggest 3 specific REAL commercial places (shops) near the destination suitable for the theme.
-           CRITICAL: You MUST provide the real KOREAN ADDRESS (Road Name or Jigubun) for each spot so it can be located on a map.
+        [IF FISHING]
+        - Identify Dominant Species & Best Bait.
+        - Suggest 3 Real Shops (Korean Address required).
         
-        Output valid JSON:
+        Output JSON:
         {
             "destination": "string",
             "theme": "FISHING",
             "checklist": ["item1", ...],
             "searchKeywords": ["keyword1", ...],
-            "targetSpecies": ["Fish1", "Fish2"],
-            "recommendedBait": ["Bait1", "Bait2"],
-            "recommendedSpots": [
-                { "name": "Store Name", "type": "Category", "address": "Real Address String" },
-                { "name": "Store Name 2", "type": "Category", "address": "Real Address String" }
-            ],
-            "recommendedStopovers": [
-                { "name": "Rest Area Name", "type": "Rest Area/Restaurant", "reason": "Famous for Walnut Cakes", "address": "Approx Address" }
-            ],
-            "checklistDetails": [
-                { 
-                    "item": "Samgyeopsal (Pork Belly)", 
-                    "category": "Food", 
-                    "recommendedShops": [ 
-                        { "name": "Best Butcher", "address": "Real Address", "description": "Menu/Price info" } 
-                    ]
-                }
-            ]
+            "targetSpecies": [],
+            "recommendedBait": [],
+            "recommendedSpots": [{"name": "", "type": "", "address": ""}],
+            "recommendedStopovers": [{"name": "", "type": "", "reason": "", "address": ""}],
+            "checklistDetails": [{"item": "", "category": "", "recommendedShops": [{"name": "", "address": ""}]}]
         }
         `;
 
@@ -275,61 +262,138 @@ export const analyzeTripIntent = async (query: string, startLocation: string = '
             })
         });
 
-        if (!response.ok) {
-            throw new Error(`Gemini API Error: ${response.statusText}`);
-        }
+        if (!response.ok) throw new Error(`Gemini API Error: ${response.statusText}`);
 
         const data = await response.json();
         const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
         if (!text) throw new Error("No response from Gemini");
 
-        // Clean any potential markdown code blocks provided by the LLM
         const jsonStr = text.replace(/```json/g, '').replace(/```/g, '').trim();
         const result = JSON.parse(jsonStr) as TripAnalysisResult;
 
         if (!result.recommendedSpots) result.recommendedSpots = [];
         if (!result.recommendedStopovers) result.recommendedStopovers = [];
 
-        // --- NEW: Enhance with Database Results (Reliable Spots) ---
-        // 1. Detect Region from Destination (Simple string match)
-        let region = 'Seoul'; // default
-        if (result.destination.includes('부산') || result.destination.includes('Busan') || result.destination.includes('기장')) region = 'Busan';
+        // --- Hybrid Match Logic ---
+        if (knownSpots.length > 0) {
+            // Try to find exact match in DB
+            const matched = knownSpots.find(s => s.name === result.destination || result.destination.includes(s.name));
+            if (matched) {
+                console.log(`[Hybrid Search] Matched Verified Spot: ${matched.name} (${matched.id})`);
+                result.destination = matched.name; // Normalize name
+                result.destinationId = matched.id;
+                result.destinationCoords = { lat: matched.lat, lng: matched.lng };
+            }
+        }
+        // --------------------------
+
+        // Legacy DB Enhancement (Region based)
+        let region = 'Seoul';
+        if (result.destination.includes('부산') || result.destination.includes('Busan')) region = 'Busan';
         if (result.destination.includes('속초') || result.destination.includes('Sokcho')) region = 'Sokcho';
-        if (result.destination.includes('인천') || result.destination.includes('Incheon') || result.destination.includes('을왕리')) region = 'Incheon';
+        if (result.destination.includes('인천') || result.destination.includes('Incheon')) region = 'Incheon';
 
         if (region !== 'Seoul') {
-            console.log(`Enhancing results with DB data for region: ${region}`);
-
-            // Fetch verified places from DB
             const marts = await findVerifiedShops(region, 'MART');
             const fishingStores = await findVerifiedShops(region, 'FISHING_STORE');
-
-            // Map DB results to Checklist Recommendations
             if (result.checklistDetails) {
                 result.checklistDetails.forEach(detail => {
-                    // If item needs meat/groceries -> Suggest Mart
-                    if (detail.category === 'Food' || detail.item.includes('고기') || detail.item.includes('물')) {
+                    if (['Food', '식품'].includes(detail.category) || detail.item.includes('고기') || detail.item.includes('물')) {
                         if (marts.length > 0) {
-                            detail.recommendedShops = marts.map(m => ({ name: m.name, address: m.address }));
+                            detail.recommendedShops = marts.map(m => ({
+                                name: m.name,
+                                address: m.address,
+                                lat: m.location ? m.location.coordinates[1] : undefined,
+                                lng: m.location ? m.location.coordinates[0] : undefined
+                            }));
                         }
                     }
-                    // If item needs bait -> Suggest Fishing Store
-                    if (detail.item.includes('미끼') || detail.item.includes('지렁이') || detail.item.includes('낚시')) {
+                    if (detail.item.includes('미끼') || detail.item.includes('낚시')) {
                         if (fishingStores.length > 0) {
-                            detail.recommendedShops = fishingStores.map(f => ({ name: f.name, address: f.address }));
+                            detail.recommendedShops = fishingStores.map(f => ({
+                                name: f.name,
+                                address: f.address,
+                                lat: f.location ? f.location.coordinates[1] : undefined,
+                                lng: f.location ? f.location.coordinates[0] : undefined
+                            }));
                         }
                     }
                 });
             }
         }
-        // -----------------------------------------------------------
+
+        // --- Stopover Enrichment (New) ---
+        if (result.recommendedStopovers && result.recommendedStopovers.length > 0) {
+            for (const stopover of result.recommendedStopovers) {
+                // Try to find this place in our DB (e.g. 휴게소, 맛집)
+                const { data: places } = await supabase
+                    .from('places')
+                    .select('name, address, type')
+                    .ilike('name', `%${stopover.name}%`)
+                    .limit(1);
+
+                if (places && places.length > 0) {
+                    const found = places[0];
+                    console.log(`[Stopover Enrichment] Found DB Match: ${found.name}`);
+                    stopover.name = found.name;
+                    stopover.address = found.address;
+                    stopover.type = found.type === 'AMENITY' ? 'Amenity' : found.type;
+                }
+            }
+        }
+        // --------------------------------
 
         console.log("Gemini Analysis:", result);
         return result;
 
     } catch (error) {
         console.error("Trip Analysis Failed:", error);
-        return mockAnalyze(query); // Fallback to safe mock if API fails
+        return mockAnalyze(query);
+    }
+};
+
+/**
+ * Real-time AI Search for Places (Gemini 3.0)
+ * Returns a list of places with addresses to be geocoded by Frontend.
+ */
+export const searchPlacesWithGemini = async (keyword: string, count: number = 3): Promise<{ name: string; type: string; address: string; description: string }[]> => {
+    if (!GEMINI_API_KEY) return [];
+
+    console.log(`🤖 Triggering Gemini 3.0 Search for: ${keyword}`);
+
+    const prompt = `
+    Find ${count} real, popular places in South Korea matching "${keyword}".
+    Focus on Fishing Spots, Camping Sites, or Amenities (Shop, Mart, Restaurant).
+    
+    Output JSON format ONLY:
+    [
+        {
+            "name": "Exact Name",
+            "type": "FISHING" | "CAMPING" | "AMENITY",
+            "address": "Full Road Name Address (Korea)",
+            "description": "Short description"
+        }
+    ]
+    `;
+
+    try {
+        const response = await fetch(GEMINI_3_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+        });
+
+        if (!response.ok) throw new Error(`Gemini 3 API Error: ${response.statusText}`);
+
+        const data = await response.json();
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!text) return [];
+
+        const jsonStr = text.replace(/```json/g, '').replace(/```/g, '').trim();
+        return JSON.parse(jsonStr);
+
+    } catch (e) {
+        console.error("Gemini 3 Search Failed:", e);
+        return [];
     }
 };

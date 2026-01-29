@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
 import { getDrivingRoute, geocodeAddress, Coordinates } from '../services/naverMapService';
-import { analyzeTripIntent, TripAnalysisResult } from '../services/tripAgentService';
+import { analyzeTripIntent, TripAnalysisResult, searchPlacesWithGemini } from '../services/tripAgentService';
+import { supabase } from '../lib/supabase';
 import { fetchPlaces, Place } from '../data/places';
-import { fetchFishSpecies, fetchBaits, fetchBaitShops, FishSpecies, Bait, BaitShop, getCurrentSeason } from '../services/fishingService';
+import { fetchFishSpecies, fetchBaits, fetchBaitShops, fetchVerifiedSpots, FishSpecies, Bait, BaitShop, getCurrentSeason } from '../services/fishingService';
 import { fetchCampingDetails, fetchRecommendedGear, fetchCampingRecipes, fetchNearbyAmenities, CampingSpotDetail, CampingGear, CampingRecipe, CampAmenity } from '../services/campingService';
 import { fetchWeather, fetchTide, WeatherData, TideData } from '../services/weatherService';
 
@@ -22,6 +23,9 @@ interface RouteSearchPanelProps {
     map: naver.maps.Map | null;
     activeCategory: 'ALL' | 'NONE' | 'FISHING' | 'CAMPING';
     onCategoryChange: (category: 'ALL' | 'NONE' | 'FISHING' | 'CAMPING') => void;
+    // Lifted State
+    isExpanded: boolean;
+    onExpandChange: (expanded: boolean) => void;
 }
 
 interface Waypoint {
@@ -29,7 +33,7 @@ interface Waypoint {
     value: string;
 }
 
-const RouteSearchPanel = ({ map, activeCategory, onCategoryChange }: RouteSearchPanelProps) => {
+const RouteSearchPanel = ({ map, activeCategory, onCategoryChange, isExpanded, onExpandChange: setIsExpanded }: RouteSearchPanelProps) => {
     // Inputs (Keep existing)
     const [startLocation, setStartLocation] = useState('내 위치');
     const [goalLocation, setGoalLocation] = useState('');
@@ -39,11 +43,47 @@ const RouteSearchPanel = ({ map, activeCategory, onCategoryChange }: RouteSearch
     const [places, setPlaces] = useState<Place[]>([]);
 
     // UI State
-    const [isExpanded, setIsExpanded] = useState(false);
+    // isExpanded removed (lifted)
     const [isSearching, setIsSearching] = useState(false);
+
+    // Touch Logic for Slide
+    const [touchStart, setTouchStart] = useState<number | null>(null);
+    const [touchEnd, setTouchEnd] = useState<number | null>(null);
+    const minSwipeDistance = 50;
+
+    const onTouchStart = (e: React.TouchEvent) => {
+        setTouchEnd(null);
+        setTouchStart(e.targetTouches[0].clientY);
+    };
+
+    const onTouchMove = (e: React.TouchEvent) => {
+        setTouchEnd(e.targetTouches[0].clientY);
+    };
+
+    const onTouchEnd = () => {
+        if (!touchStart || !touchEnd) return;
+        const distance = touchStart - touchEnd;
+        if (distance > minSwipeDistance) {
+            setIsExpanded(true);
+        } else if (distance < -minSwipeDistance) {
+            setIsExpanded(false);
+        }
+    };
+
 
     // AI Trip State
     const [tripResult, setTripResult] = useState<TripAnalysisResult | null>(null);
+    const [verifiedSpots, setVerifiedSpots] = useState<any[]>([]);
+
+    // Load Verified Spots on Mount for Hybrid Search
+    useEffect(() => {
+        const loadSpots = async () => {
+            const spots = await fetchVerifiedSpots();
+            console.log("Loaded Verified Spots:", spots.length);
+            setVerifiedSpots(spots);
+        };
+        loadSpots();
+    }, []);
 
 
     // Real Data State
@@ -188,10 +228,10 @@ const RouteSearchPanel = ({ map, activeCategory, onCategoryChange }: RouteSearch
                 position: new naver.maps.LatLng(place.lat, place.lng),
                 title: place.name,
                 icon: {
-                    content: `<div style="background:${color};width:32px;height:32px;border-radius:50%;border:2px solid white;box-shadow:0 2px 4px rgba(0,0,0,0.3);display:flex;justify-content:center;align-items:center;font-size:18px;">
+                    content: `<div style="background:${color}cc;backdrop-filter:blur(4px);width:36px;height:36px;border-radius:50%;border:2px solid rgba(255,255,255,0.6);box-shadow:0 8px 32px rgba(31,38,135,0.25);display:flex;justify-content:center;align-items:center;font-size:18px;">
                                 ${iconChar}
                               </div>`,
-                    anchor: new naver.maps.Point(16, 16)
+                    anchor: new naver.maps.Point(18, 18)
                 }
             });
 
@@ -299,6 +339,30 @@ const RouteSearchPanel = ({ map, activeCategory, onCategoryChange }: RouteSearch
         });
     };
 
+    // Frontend Geocoding Helper (Bypassing Server 401)
+    const geocodeFrontend = (address: string): Promise<{ lat: number, lng: number } | null> => {
+        return new Promise((resolve) => {
+            if (!window.naver || !window.naver.maps || !window.naver.maps.Service) {
+                console.warn("Naver Maps Service not available");
+                resolve(null);
+                return;
+            }
+            window.naver.maps.Service.geocode({ query: address }, (status: any, response: any) => {
+                if (status !== window.naver.maps.Service.Status.OK) {
+                    console.warn(`Geocode failed for: ${address}`);
+                    resolve(null);
+                } else {
+                    const item = response.v2.addresses[0];
+                    if (item) {
+                        resolve({ lat: parseFloat(item.y), lng: parseFloat(item.x) });
+                    } else {
+                        resolve(null);
+                    }
+                }
+            });
+        });
+    };
+
     const resolveCoordinates = async (address: string): Promise<Coordinates> => {
         if (address === '내 위치') {
             return getCurrentLocationCoords();
@@ -346,10 +410,107 @@ const RouteSearchPanel = ({ map, activeCategory, onCategoryChange }: RouteSearch
                 // Optimization: If user types "Eulwangri", map it to the predefined spot name
                 console.log("Matched Predefined Spot:", predefined.name);
                 // We still allow AI analysis for checklist, but we hint the destination
+            } else {
+                // 0-1. Real-time AI Search & Cache (If no predefined match)
+                console.log("No local match found. Triggering Real-time AI Search...");
+
+                // [NEW] Direct Supabase Query for Partial Matches
+                const { data: dbMatches } = await supabase
+                    .from('places')
+                    .select('*')
+                    .or(`name.ilike.%${goalLocation}%,address.ilike.%${goalLocation}%`)
+                    .limit(5);
+
+                let mergedPlaces = [...places];
+
+                if (dbMatches && dbMatches.length > 0) {
+                    console.log(`[Supabase] Found ${dbMatches.length} matches from DB`);
+                    // Merge DB results
+                    const newFromDB = dbMatches.map(p => ({
+                        id: p.id,
+                        name: p.name,
+                        type: p.type,
+                        address: p.address,
+                        lat: p.location?.coordinates?.[1] || p.lat, // Handle GeoJSON or flat columns
+                        lng: p.location?.coordinates?.[0] || p.lng,
+                        description: p.description,
+                        image_url: 'https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=200'
+                    })) as Place[];
+
+                    // Filter duplicates
+                    const uniqueNew = newFromDB.filter(n => !mergedPlaces.find(e => e.name === n.name));
+                    mergedPlaces = [...mergedPlaces, ...uniqueNew];
+                    setPlaces(mergedPlaces);
+
+                    // Check if one of them matches the goal
+                    const dbDirectMatch = uniqueNew.find(p => p.name.includes(goalLocation));
+                    if (dbDirectMatch) {
+                        console.log("Matched DB Spot:", dbDirectMatch.name);
+                        // Use this matched spot for navigation target if user confirms immediately
+                        // For now just ensuring it's in the list
+                    }
+                }
+
+                // UI Feedback?
+                const aiPlaces = await searchPlacesWithGemini(goalLocation);
+                if (aiPlaces.length > 0) {
+                    console.log(`AI found ${aiPlaces.length} new places. Geocoding & Saving...`);
+                    const newCachedPlaces: Place[] = [];
+
+                    for (const aiPlace of aiPlaces) {
+                        const coords = await geocodeFrontend(aiPlace.address);
+                        if (coords) {
+                            console.log(`✅ Geocoded: ${aiPlace.name} ->`, coords);
+                            // Upsert to DB
+                            const { data: saved, error } = await supabase
+                                .from('places')
+                                .upsert({
+                                    name: aiPlace.name,
+                                    type: aiPlace.type,
+                                    address: aiPlace.address,
+                                    description: aiPlace.description,
+                                    location: { type: 'Point', coordinates: [coords.lng, coords.lat] },
+                                    lat: coords.lat, // Redundant but useful for simple select
+                                    lng: coords.lng
+                                }, { onConflict: 'name' })
+                                .select()
+                                .single(); // Single might fail if not returned, usually select() returns array. .select().single() works for one.
+
+                            if (!error && saved) {
+                                // Add to local state immediately
+                                newCachedPlaces.push({
+                                    id: saved.id,
+                                    name: saved.name,
+                                    type: saved.type,
+                                    lat: coords.lat,
+                                    lng: coords.lng,
+                                    address: saved.address,
+                                    image_url: 'https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=200', // Default
+                                    desc: saved.description
+                                });
+                            }
+                        }
+                    }
+
+                    if (newCachedPlaces.length > 0) {
+                        // Merge again
+                        setPlaces(prev => {
+                            // Dedup against prev
+                            const all = [...prev, ...newCachedPlaces];
+                            return all.filter((v, i, a) => a.findIndex(v2 => (v2.name === v.name)) === i);
+                        });
+
+                        // If one of them matches the goal, use it
+                        const directMatch = newCachedPlaces.find(p => p.name.includes(goalLocation));
+                        if (directMatch) {
+                            console.log("Matched newly cached spot:", directMatch.name);
+                        }
+                    }
+                }
             }
 
             // 1. AI Analysis
-            const analysis = await analyzeTripIntent(goalLocation, startLocation);
+            const analysis = await analyzeTripIntent(goalLocation, startLocation, verifiedSpots);
             setTripResult(analysis);
 
             if (analysis.recommendedSpots) {
@@ -378,12 +539,29 @@ const RouteSearchPanel = ({ map, activeCategory, onCategoryChange }: RouteSearch
     };
 
     // Core Navigation Logic
-    const handleStartRealNavigation = async (finalDestination: string) => {
+    const handleStartRealNavigation = async (finalDestination: string, targetCoordsOverride?: Coordinates) => {
         setIsSearching(true);
         try {
             // 1. Resolve Start/Goal
             const startCoords = await resolveCoordinates(startLocation);
-            const goalCoords = await resolveCoordinates(finalDestination);
+
+            let goalCoords: Coordinates;
+
+            // PRIORITY 1: Explicit Coordinates (from Map Click / DB)
+            if (targetCoordsOverride) {
+                console.log("Using Explicit Target Coordinates:", targetCoordsOverride);
+                goalCoords = targetCoordsOverride;
+            }
+            // PRIORITY 2: Validated AI Result Coords (Hybrid Search)
+            else if (tripResult?.destinationId && tripResult.destinationCoords && tripResult.destination === finalDestination) {
+                console.log("Using Verified DB Coordinates for Goal:", tripResult.destinationCoords);
+                goalCoords = tripResult.destinationCoords;
+            }
+            // PRIORITY 3: Geocoding Name (Fallback)
+            else {
+                console.log("Geocoding Goal Name:", finalDestination);
+                goalCoords = await resolveCoordinates(finalDestination);
+            }
 
             // 2. Resolve Manual Waypoints
             const manualWaypointPromises = waypoints
@@ -563,15 +741,17 @@ const RouteSearchPanel = ({ map, activeCategory, onCategoryChange }: RouteSearch
 
     return (
         <>
-            {/* --- NEW BOTTOM SHEET LAYOUT --- */}
-
             {/* 1. Bottom Fixed Search/Nav Container */}
-            <div className={`bottom-sheet-container ${isExpanded ? 'active' : ''}`}>
+            <div
+                className={`bottom-sheet-container ${isExpanded ? 'active' : ''}`}
+                onTouchStart={onTouchStart}
+                onTouchMove={onTouchMove}
+                onTouchEnd={onTouchEnd}
+            >
+                <div className="sheet-handle-bar" onClick={() => setIsExpanded(!isExpanded)}></div>
 
-                {/* Scroll Wrapper for Sheet Animation */}
-                <div className="sheet-scroll-view" onClick={() => !isExpanded && setIsExpanded(true)}>
-
-                    {/* Search Bar Floating - Moves UP when active */}
+                <div className="sheet-content-wrapper">
+                    {/* Search Bar Floating */}
                     <div className="glass-search-bar-container">
                         <div className="glass-search-input-box">
                             <span className="search-icon">🔍</span>
@@ -584,7 +764,7 @@ const RouteSearchPanel = ({ map, activeCategory, onCategoryChange }: RouteSearch
                                 <input
                                     type="text"
                                     className="glass-input"
-                                    placeholder={tripResult ? `[${tripResult.theme}] ${tripResult.destination}` : "어디로 떠나시나요?"}
+                                    placeholder={tripResult ? `[${tripResult.theme}] ${tripResult.destination}` : "Around current location"}
                                     value={goalLocation}
                                     onChange={(e) => setGoalLocation(e.target.value)}
                                     // Stop propagation so clicking input doesn't toggle sheet if logic requires
@@ -608,7 +788,13 @@ const RouteSearchPanel = ({ map, activeCategory, onCategoryChange }: RouteSearch
                                 <h3 className="section-title">🔥 요즘 뜨는 핫플레이스</h3>
                                 <div className="horizontal-scroll-list">
                                     {POPULAR_POINTS.map(point => (
-                                        <div key={point.id} className="point-card" onClick={(e) => { e.stopPropagation(); handleStartRealNavigation(point.name); }}>
+                                        <div key={point.id} className="point-card" onClick={async (e) => {
+                                            e.stopPropagation();
+                                            // Popular places need geocoding if coords not predefined, but for now we trust name. 
+                                            // Better: resolveCoordinates will check 'places' state if we preload them.
+                                            // Assuming POPULAR_POINTS names exist in 'places' or will be geocoded.
+                                            handleStartRealNavigation(point.name);
+                                        }}>
                                             <div className="card-thumb" style={{ backgroundImage: `url(${point.image})` }}></div>
                                             <div className="card-info">
                                                 <span className="card-name">{point.name}</span>
@@ -665,28 +851,26 @@ const RouteSearchPanel = ({ map, activeCategory, onCategoryChange }: RouteSearch
                                                                 <div className={`check-circle ${selectedChecklistItems.has(item.item) ? 'checked' : ''}`}>
                                                                     {selectedChecklistItems.has(item.item) ? '✔' : ''}
                                                                 </div>
-                                                                <div className="check-label-group" style={{ marginLeft: '10px' }}>
+                                                                <div className="label-group" style={{ marginLeft: '10px' }}>
                                                                     <span className="check-name">{item.item}</span>
                                                                     {/* @ts-ignore */}
-                                                                    {item.reason && <span style={{ fontSize: '11px', color: '#999' }}>{item.reason}</span>}
+                                                                    <span className="check-cate">{item.reason}</span>
                                                                 </div>
-                                                                {item.recommendedShops && item.recommendedShops.length > 0 && (
-                                                                    <button style={{ padding: '4px', fontSize: '16px' }} onClick={(e) => { e.stopPropagation(); toggleChecklistExpand(item.item); }}>
-                                                                        {expandedChecklistItems.has(item.item) ? '🔼' : '🔽'}
-                                                                    </button>
-                                                                )}
                                                             </div>
-
-                                                            {/* Expanded Shop List */}
-                                                            {expandedChecklistItems.has(item.item) && item.recommendedShops && (
-                                                                <div className="shop-list-dropdown">
-                                                                    {item.recommendedShops.map((shop, sIdx) => (
-                                                                        <div key={sIdx} className={`shop-option ${selectedSpots.includes(shop.name) ? 'selected' : ''}`} onClick={(e) => { e.stopPropagation(); toggleSpotSelection(shop.name); }}>
-                                                                            <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                                                                <span className="shop-name-mini">{shop.name}</span>
-                                                                                <span style={{ fontSize: '10px', color: '#999' }}>{shop.address}</span>
-                                                                            </div>
-                                                                            <span className="add-btn-mini">{selectedSpots.includes(shop.name) ? '포함됨' : '+ 경유'}</span>
+                                                            {/* Recommendation Card */}
+                                                            {item.recommendedShops && item.recommendedShops.length > 0 && selectedChecklistItems.has(item.item) && (
+                                                                <div className="shop-recommendation-card">
+                                                                    <div className="rec-badge">추천 구매처</div>
+                                                                    {item.recommendedShops.map((shop, idx) => (
+                                                                        <div key={idx} className="shop-row">
+                                                                            <span className="shop-name">{shop.name}</span>
+                                                                            <span className="shop-addr">{shop.address}</span>
+                                                                            <button className="nav-btn-mini" onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                // Shops usually come from detail check, but we might not have lat/lng here if it's just from Gemini text.
+                                                                                // If we have coords from 'places' match, we should use them.
+                                                                                handleStartRealNavigation(shop.name, shop.lat && shop.lng ? { lat: shop.lat, lng: shop.lng } : undefined);
+                                                                            }}>안내</button>
                                                                         </div>
                                                                     ))}
                                                                 </div>
@@ -699,101 +883,81 @@ const RouteSearchPanel = ({ map, activeCategory, onCategoryChange }: RouteSearch
                                     </div>
                                 )}
 
-                                {/* Spot Detail View (When clicked from map) */}
+                                {/* Focused Place Detail */}
                                 {focusedPlace && !tripResult && (
-                                    <div className="ai-result-section">
-                                        <div className="result-header">
-                                            <span className="theme-badge" style={{ background: focusedPlace.type === 'FISHING' ? '#2563EB' : '#10B981' }}>
-                                                {focusedPlace.type === 'FISHING' ? '낚시 포인트' : '캠핑장'}
-                                            </span>
-                                            <h4>{focusedPlace.name}</h4>
+                                    <div className="place-detail-card">
+                                        <div className="place-header">
+                                            <div className="place-title-row">
+                                                <h3>{focusedPlace.name}</h3>
+                                                <span className={`type-tag ${focusedPlace.type}`}>{focusedPlace.type === 'FISHING' ? '낚시' : '캠핑'}</span>
+                                            </div>
+                                            <p className="place-addr">{focusedPlace.address}</p>
                                         </div>
-                                        <p style={{ fontSize: '13px', color: '#666', margin: '5px 0' }}>{focusedPlace.address}</p>
-                                        <p style={{ fontSize: '13px', color: '#444' }}>{focusedPlace.desc}</p>
 
-                                        {/* Weather & Tide (If Fishing) */}
+                                        {/* Weather & Tide Widget */}
+                                        <div className="weather-widget">
+                                            <div className="info-row">
+                                                <span className="info-icon">🌤</span>
+                                                <span className="info-label">기상:</span>
+                                                <span className="info-val">{currentWeather ? `${currentWeather.temp}°C / ${currentWeather.condition}` : '로딩중...'}</span>
+                                            </div>
+                                            <div className="info-row">
+                                                <span className="info-icon">🌊</span>
+                                                <span className="info-label">물때:</span>
+                                                {/* @ts-ignore */}
+                                                <span className="info-val">{currentTide ? `물때: ${currentTide.score}` : '로딩중...'}</span>
+                                            </div>
+                                        </div>
+
+                                        {/* Fishing Species & Baits */}
                                         {focusedPlace.type === 'FISHING' && (
-                                            <div className="fishing-info-box">
-                                                <div className="info-row">
-                                                    <span className="info-icon">🌤️</span>
-                                                    <span className="info-label">날씨:</span>
-                                                    <span className="info-val">{currentWeather ? `${currentWeather.temp}°C, 풍속 ${currentWeather.windSpeed}m/s` : '로딩중...'}</span>
+                                            <div className="detail-section">
+                                                <h5>🐟 주요 어종 & 추천 미끼</h5>
+                                                <div className="species-list-h">
+                                                    {currentSpecies.length > 0 ? currentSpecies.map(s => (
+                                                        <div key={s.id} className="species-tag">
+                                                            <span className="sp-name">{s.name}</span>
+                                                            <span className="sp-desc">{s.habitat}</span>
+                                                        </div>
+                                                    )) : <span className="no-data">정보 없음</span>}
                                                 </div>
-                                                <div className="info-row">
-                                                    <span className="info-icon">🌊</span>
-                                                    <span className="info-label">물때:</span>
-                                                    {/* @ts-ignore */}
-                                                    <span className="info-val">{currentTide ? `물때: ${currentTide.score}` : '로딩중...'}</span>
+                                                <div className="bait-list-row" style={{ marginTop: '8px' }}>
+                                                    {currentBaits.map(b => (
+                                                        <span key={b.id} className="bait-tag">🪱 {b.name}</span>
+                                                    ))}
                                                 </div>
                                             </div>
                                         )}
 
-                                        {/* Camping Details */}
+                                        {/* Camping Gear & Recipes */}
                                         {focusedPlace.type === 'CAMPING' && (
-                                            <div className="camping-section">
-                                                {/* Spot Details */}
-                                                {campingDetails && (
-                                                    <div className="spot-details" style={{ marginBottom: '20px', padding: '10px', background: '#ECFDF5', borderRadius: '8px', fontSize: '13px' }}>
-                                                        <div style={{ display: 'flex', gap: '10px', marginBottom: '4px' }}>
-                                                            <span style={{ fontWeight: 'bold' }}>🏕️ {campingDetails.campType}</span>
-                                                            <span>바닥: {campingDetails.floorType}</span>
+                                            <div className="detail-section">
+                                                <h5>⛺ 추천 장비 & 요리</h5>
+                                                <div className="gear-list">
+                                                    {recommendedGear.length > 0 ? recommendedGear.map(g => (
+                                                        <div key={g.id} className="gear-item">
+                                                            <span className="gear-name">{g.name}</span>
+                                                            {g.isEssentialForWinter && <span className="winter-tag">❄동계필수</span>}
                                                         </div>
-                                                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '8px' }}>
-                                                            {campingDetails.facilities.electricity && <span style={{ background: '#D1FAE5', color: '#065F46', padding: '2px 6px', borderRadius: '4px' }}>⚡ 전기</span>}
-                                                            {campingDetails.facilities.hotWater && <span style={{ background: '#D1FAE5', color: '#065F46', padding: '2px 6px', borderRadius: '4px' }}>💧 온수</span>}
-                                                            {campingDetails.facilities.wifi && <span style={{ background: '#D1FAE5', color: '#065F46', padding: '2px 6px', borderRadius: '4px' }}>📶 WiFi</span>}
-                                                            {campingDetails.facilities.petFriendly && <span style={{ background: '#D1FAE5', color: '#065F46', padding: '2px 6px', borderRadius: '4px' }}>🐶 반려동물</span>}
-                                                        </div>
-                                                    </div>
-                                                )}
-
-                                                <div className="gear-section">
-                                                    <h3>⛺ 필수/추천 장비</h3>
-                                                    {recommendedGear.length > 0 ? recommendedGear.map(gear => (
-                                                        <div key={gear.id} className="gear-item">
-                                                            <span className="gear-icon">{gear.category === 'SLEEPING' ? '🛌' : gear.category === 'KITCHEN' ? '🍳' : '🔨'}</span>
-                                                            <div className="gear-info">
-                                                                <span className="gear-name">{gear.name}</span>
-                                                                <span className="gear-reason">{gear.reason}</span>
-                                                            </div>
-                                                        </div>
-                                                    )) : <p style={{ fontSize: '12px', color: '#999' }}>추천 장비 정보가 없습니다.</p>}
+                                                    )) : <span className="no-data">추천 장비 정보 없음</span>}
                                                 </div>
-
-                                                <div className="recipe-section" style={{ marginTop: '15px' }}>
-                                                    <h3>🍳 추천 캠핑 요리</h3>
-                                                    <div className="recipe-list">
-                                                        {campingRecipes.length > 0 ? campingRecipes.map(recipe => (
-                                                            <div key={recipe.id} className="recipe-card">
-                                                                <div className="recipe-header">
-                                                                    <span className="recipe-name">{recipe.name}</span>
-                                                                    {/* @ts-ignore */}
-                                                                    <span className="recipe-diff">{'⭐'.repeat(recipe.difficulty)}</span>
-                                                                </div>
-                                                                {/* @ts-ignore */}
-                                                                <p className="recipe-method">{recipe.method || recipe.cookingMethod}</p>
-                                                            </div>
-                                                        )) : <p style={{ fontSize: '12px', color: '#999' }}>추천 요리 정보가 없습니다.</p>}
-                                                    </div>
+                                                <div className="recipe-list" style={{ marginTop: '10px' }}>
+                                                    {campingRecipes.map(r => (
+                                                        <div key={r.id} className="recipe-card-mini">
+                                                            <span className="rc-name">🍳 {r.name}</span>
+                                                        </div>
+                                                    ))}
                                                 </div>
-
-                                                <button className="confirm-trip-btn" style={{ marginTop: '15px', background: '#10B981' }} onClick={async (e) => {
-                                                    e.stopPropagation();
-                                                    const amenities = await fetchNearbyAmenities(focusedPlace.lat, focusedPlace.lng);
-                                                    setNearbyAmenities(amenities);
-                                                    alert(`${amenities.length}개의 편의시설을 찾았습니다.\n지도를 확대하여 확인하세요.`);
-                                                    if (amenities.length > 0) {
-                                                        (map as any).panTo(new naver.maps.LatLng(amenities[0].lat, amenities[0].lng));
-                                                    }
-                                                }}>
-                                                    🏪 근처 편의시설 찾기
-                                                </button>
                                             </div>
                                         )}
 
-                                        <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-                                            <button className="confirm-trip-btn" onClick={(e) => { e.stopPropagation(); handleStartRealNavigation(focusedPlace.name); }}>
-                                                🚗 출발지로 설정
+                                        {/* Actions */}
+                                        <div className="action-row" style={{ marginTop: '20px' }}>
+                                            <button className="confirm-trip-btn" onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleStartRealNavigation(focusedPlace.name, { lat: focusedPlace.lat, lng: focusedPlace.lng });
+                                            }}>
+                                                🚗 길안내 시작
                                             </button>
                                             {focusedPlace.type === 'FISHING' && (
                                                 <button className="confirm-trip-btn" style={{ background: '#F59E0B' }} onClick={async (e) => {
@@ -809,33 +973,53 @@ const RouteSearchPanel = ({ map, activeCategory, onCategoryChange }: RouteSearch
                                         </div>
                                     </div>
                                 )}
-
                             </div>
                         )}
-                    </div>
-                </div>
 
-                {/* Bottom Navigation */}
-                <div className="bottom-nav-bar">
-                    <div className="nav-item active">
-                        <span className="nav-icon">🗺️</span>
-                        <span className="nav-label">Explore</span>
-                    </div>
-                    <div className="nav-item">
-                        <span className="nav-icon">📋</span>
-                        <span className="nav-label">List</span>
-                    </div>
-                    <div className="nav-item">
-                        <span className="nav-icon">📨</span>
-                        <span className="nav-label">Inbox</span>
-                        <span className="nav-badge">2</span>
-                    </div>
-                    <div className="nav-item">
-                        <span className="nav-icon">👤</span>
-                        <span className="nav-label">Me</span>
-                    </div>
-                </div>
+                        {/* Dummy items for scroll test (Recent Search) - Only visible when expanded and no result */}
+                        {isExpanded && !tripResult && !focusedPlace && (
+                            <div className="recent-search-section" style={{ padding: '0 10px' }}>
+                                <h4 style={{ margin: '20px 0 15px', color: 'rgba(255,255,255,0.7)', fontSize: '13px', letterSpacing: '1px' }}>RECENT SEARCH</h4>
+                                <div className="recent-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '15px', color: 'white' }}>
+                                    <div className="recent-icon" style={{ width: '36px', height: '36px', background: 'rgba(255,255,255,0.2)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: '12px' }}>🕒</div>
+                                    <div className="recent-info">
+                                        <div className="recent-title" style={{ fontWeight: 'bold', fontSize: '15px' }}>을왕리 해수욕장</div>
+                                        <div className="recent-sub" style={{ fontSize: '12px', opacity: 0.7 }}>인천 중구</div>
+                                    </div>
+                                </div>
+                                <div className="recent-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '15px', color: 'white' }}>
+                                    <div className="recent-icon" style={{ width: '36px', height: '36px', background: 'rgba(255,255,255,0.2)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: '12px' }}>🕒</div>
+                                    <div className="recent-info">
+                                        <div className="recent-title" style={{ fontWeight: 'bold', fontSize: '15px' }}>가평 자라섬</div>
+                                        <div className="recent-sub" style={{ fontSize: '12px', opacity: 0.7 }}>경기 가평군</div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
+                    </div>
+
+                    {/* Bottom Navigation */}
+                    {/* <div className="bottom-nav-bar">
+                        <div className={`nav-item ${!activeCategory || activeCategory === 'ALL' ? 'active' : ''}`}>
+                            <span className="nav-icon">🗺️</span>
+                            <span className="nav-label">Explore</span>
+                        </div>
+                        <div className="nav-item">
+                            <span className="nav-icon">🔖</span>
+                            <span className="nav-label">List</span>
+                        </div>
+                        <div className="nav-item">
+                            <span className="nav-icon">🔔</span>
+                            <span className="nav-label">Inbox</span>
+                            <span className="badge">2</span>
+                        </div>
+                        <div className="nav-item">
+                            <span className="nav-icon">👤</span>
+                            <span className="nav-label">Me</span>
+                        </div>
+                    </div> */}
+                </div>
             </div>
         </>
     );

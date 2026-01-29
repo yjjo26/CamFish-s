@@ -1,11 +1,13 @@
 export interface Place {
     id: number;
     name: string;
-    type: 'FISHING' | 'CAMPING';
+    type: 'FISHING' | 'CAMPING' | 'AMENITY' | string; // Relaxed type
     address: string;
     lat: number;
     lng: number;
     desc?: string;
+    description?: string;
+    image_url?: string;
 }
 
 
