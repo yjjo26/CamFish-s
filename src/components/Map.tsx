@@ -19,11 +19,8 @@ const Map = ({ onMapLoad, onMapClick }: MapProps) => {
         const defaultLocation = new naver.maps.LatLng(37.5665, 126.9780);
         const mapOptions = {
             center: defaultLocation,
-            zoom: 12, // 시/군/구보다 한 단계 확대 레벨
-            zoomControl: true,
-            zoomControlOptions: {
-                position: naver.maps.Position.TOP_RIGHT,
-            },
+            zoom: 10, // 시/군/구 레벨로 조정
+            zoomControl: false, // 확대/축소 UI 숨김
             tileTransition: true, // Smooth tile fading
             disableKineticPan: false, // Enable inertia panning (smoothness)
             scrollWheel: true,
@@ -41,7 +38,7 @@ const Map = ({ onMapLoad, onMapClick }: MapProps) => {
                     const userLocation = new naver.maps.LatLng(lat, lng);
 
                     map.setCenter(userLocation);
-                    map.setZoom(12, true); // 시/군/구보다 한 단계 확대 레벨
+                    map.setZoom(10, true); // 시/군/구 레벨로 조정
 
                     // Optional: Add a marker for "My Location"
                     new naver.maps.Marker({

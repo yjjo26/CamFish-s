@@ -1,11 +1,12 @@
 import { useState, useRef, useEffect } from 'react';
 import { getDrivingRoute, geocodeAddress, Coordinates } from '../services/naverMapService';
-import { analyzeTripIntent, TripAnalysisResult, searchPlacesWithGemini } from '../services/tripAgentService';
+import { analyzeTripIntent, TripAnalysisResult, searchPlacesWithGemini, searchPlacesByKeywords } from '../services/tripAgentService';
 import { supabase } from '../lib/supabase';
 import { fetchPlaces, Place } from '../data/places';
 import { fetchFishSpecies, fetchBaits, fetchBaitShops, fetchVerifiedSpots, FishSpecies, Bait, BaitShop, getCurrentSeason } from '../services/fishingService';
 import { fetchCampingDetails, fetchRecommendedGear, fetchCampingRecipes, fetchNearbyAmenities, CampingSpotDetail, CampingGear, CampingRecipe, CampAmenity } from '../services/campingService';
 import { fetchWeather, fetchTide, WeatherData, TideData } from '../services/weatherService';
+import CleanupReviewSection from './CleanupReviewSection';
 
 // @ts-ignore
 import MarkerClustering from '../lib/MarkerClustering';
@@ -164,12 +165,21 @@ const RouteSearchPanel = ({ map, activeCategory, onCategoryChange, isExpanded, o
 
             // 2. Fishing Data (if applicable)
             if (focusedPlace.type === 'FISHING') {
-                const species = await fetchFishSpecies(String(focusedPlace.id));
+                let species = await fetchFishSpecies(String(focusedPlace.id));
+
+                // [Fallback] If no location-specific species, use seasonal defaults
+                if (species.length === 0) {
+                    console.log('[Fallback] No location-specific species found, fetching seasonal defaults.');
+                    const { fetchSeasonalSpecies } = await import('../services/fishingService');
+                    species = await fetchSeasonalSpecies();
+                }
+
                 setCurrentSpecies(species);
 
-                // Fetch Baits for these species
+                // Fetch Baits for these species (with names for fallback)
                 const speciesIds = species.map(s => s.id);
-                const baits = await fetchBaits(speciesIds);
+                const speciesNames = species.map(s => s.name);
+                const baits = await fetchBaits(speciesIds, speciesNames);
                 setCurrentBaits(baits);
             } else if (focusedPlace.type === 'CAMPING') {
                 // Fetch Camping Data
@@ -511,6 +521,43 @@ const RouteSearchPanel = ({ map, activeCategory, onCategoryChange, isExpanded, o
 
             // 1. AI Analysis
             const analysis = await analyzeTripIntent(goalLocation, startLocation, verifiedSpots);
+
+            // 2. Enhanced Keyword Search using AI-extracted keywords
+            if (analysis.searchKeywords && analysis.searchKeywords.length > 0) {
+                console.log(`[Smart Search] Using AI keywords:`, analysis.searchKeywords);
+                const keywordMatches = await searchPlacesByKeywords(analysis.searchKeywords);
+
+                if (keywordMatches.length > 0) {
+                    console.log(`[Smart Search] Found ${keywordMatches.length} matches from keywords`);
+
+                    // Convert to Place format and merge
+                    const newPlaces = keywordMatches.map(p => ({
+                        id: p.id,
+                        name: p.name,
+                        type: p.type,
+                        address: p.address,
+                        lat: p.location?.coordinates?.[1] || p.lat,
+                        lng: p.location?.coordinates?.[0] || p.lng,
+                        description: p.description,
+                        image_url: 'https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=200'
+                    })) as Place[];
+
+                    // Merge with existing places (dedup)
+                    setPlaces(prev => {
+                        const all = [...prev, ...newPlaces];
+                        return all.filter((v, i, a) => a.findIndex(v2 => v2.name === v.name) === i);
+                    });
+
+                    // If top match has high score, update destination
+                    const topMatch = keywordMatches[0];
+                    if (topMatch.matchScore >= 2 && !analysis.destinationId) {
+                        console.log(`[Smart Search] High confidence match: ${topMatch.name}`);
+                        analysis.destination = topMatch.name;
+                        analysis.destinationCoords = { lat: topMatch.lat, lng: topMatch.lng };
+                    }
+                }
+            }
+
             setTripResult(analysis);
 
             if (analysis.recommendedSpots) {
@@ -782,8 +829,21 @@ const RouteSearchPanel = ({ map, activeCategory, onCategoryChange, isExpanded, o
                     {/* Expanded Content Area */}
                     <div className="bottom-sheet-content">
 
+                        {/* AI Typing Indicator (Loading State) */}
+                        {isSearching && !tripResult && (
+                            <div className="ai-typing-indicator">
+                                <span className="ai-avatar">🤖</span>
+                                <span>AI가 분석 중이에요...</span>
+                                <div className="typing-dots">
+                                    <span></span>
+                                    <span></span>
+                                    <span></span>
+                                </div>
+                            </div>
+                        )}
+
                         {/* A. Popular Points (Horizontal Scroll) - Only show when NOT searching/planning yet */}
-                        {!tripResult && !focusedPlace && (
+                        {!tripResult && !focusedPlace && !isSearching && (
                             <div className="popular-points-section">
                                 <h3 className="section-title">🔥 요즘 뜨는 핫플레이스</h3>
                                 <div className="horizontal-scroll-list">
@@ -823,6 +883,16 @@ const RouteSearchPanel = ({ map, activeCategory, onCategoryChange, isExpanded, o
                                 {/* Trip Result */}
                                 {tripResult && (
                                     <div className="ai-result-section">
+                                        {/* AI Conversational Message */}
+                                        {tripResult.aiMessage && (
+                                            <div className="ai-message-bubble">
+                                                <span className="ai-avatar">🤖</span>
+                                                <div className="ai-message-content">
+                                                    <p className="ai-message-text">{tripResult.aiMessage}</p>
+                                                </div>
+                                            </div>
+                                        )}
+
                                         <div className="result-header">
                                             <span className={`theme-badge ${tripResult.theme}`}>{tripResult.theme === 'FISHING' ? '낚시 여행' : tripResult.theme === 'CAMPING' ? '캠핑 여행' : '일반 여행'}</span>
                                             <h4>{tripResult.destination}</h4>
@@ -909,47 +979,141 @@ const RouteSearchPanel = ({ map, activeCategory, onCategoryChange, isExpanded, o
                                             </div>
                                         </div>
 
-                                        {/* Fishing Species & Baits */}
+                                        {/* Fishing Species & Baits (Moved Here) */}
                                         {focusedPlace.type === 'FISHING' && (
-                                            <div className="detail-section">
-                                                <h5>🐟 주요 어종 & 추천 미끼</h5>
-                                                <div className="species-list-h">
-                                                    {currentSpecies.length > 0 ? currentSpecies.map(s => (
-                                                        <div key={s.id} className="species-tag">
-                                                            <span className="sp-name">{s.name}</span>
-                                                            <span className="sp-desc">{s.habitat}</span>
-                                                        </div>
-                                                    )) : <span className="no-data">정보 없음</span>}
+                                            <div className="detail-section" style={{ marginTop: '16px', marginBottom: '16px' }}>
+
+                                                {/* Major Species (Icons) */}
+                                                <h5 style={{ marginBottom: '8px', fontSize: '15px', fontWeight: 'bold' }}>🐟 주요 어종</h5>
+                                                <div className="species-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '16px' }}>
+                                                    {currentSpecies.length > 0 ? currentSpecies.map((s) => {
+                                                        // Fish icon mapping
+                                                        const getFishIcon = (name: string) => {
+                                                            const n = name.toLowerCase();
+                                                            if (n.includes('오징어') || n.includes('한치')) return '🦑';
+                                                            if (n.includes('문어') || n.includes('쭈꾸미')) return '🐙';
+                                                            if (n.includes('새우') || n.includes('대하')) return '🦐';
+                                                            if (n.includes('게') || n.includes('꽃게')) return '🦀';
+                                                            if (n.includes('조개') || n.includes('굴')) return '🦪';
+                                                            if (n.includes('고래') || n.includes('돌고래')) return '🐳';
+                                                            if (n.includes('상어')) return '🦈';
+                                                            if (n.includes('복어')) return '🐡';
+                                                            if (n.includes('열대') || n.includes('니모')) return '🐠';
+                                                            return '🐟'; // Default fish
+                                                        };
+                                                        return (
+                                                            <div key={s.id} className="species-item" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                                                <div className="sp-icon" style={{
+                                                                    width: '48px',
+                                                                    height: '48px',
+                                                                    borderRadius: '12px',
+                                                                    background: 'linear-gradient(135deg, #EFF6FF, #DBEAFE)',
+                                                                    display: 'flex',
+                                                                    alignItems: 'center',
+                                                                    justifyContent: 'center',
+                                                                    fontSize: '24px',
+                                                                    marginBottom: '4px',
+                                                                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                                                                }}>
+                                                                    {getFishIcon(s.name)}
+                                                                </div>
+                                                                <span className="sp-name" style={{ fontSize: '11px', fontWeight: '500', color: '#374151', textAlign: 'center' }}>{s.name}</span>
+                                                            </div>
+                                                        );
+                                                    }) : <span className="no-data" style={{ gridColumn: '1 / -1', color: '#9CA3AF', fontSize: '13px' }}>정보 없음</span>}
                                                 </div>
-                                                <div className="bait-list-row" style={{ marginTop: '8px' }}>
-                                                    {currentBaits.map(b => (
-                                                        <span key={b.id} className="bait-tag">🪱 {b.name}</span>
-                                                    ))}
+
+                                                {/* Recommended Baits (Text) */}
+                                                <h5 style={{ marginBottom: '8px', fontSize: '15px', fontWeight: 'bold' }}>🪱 추천 미끼</h5>
+                                                <div className="bait-list-row" style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                                                    {currentBaits.length > 0 ? currentBaits.map(b => (
+                                                        <span key={b.id} className="bait-tag" style={{
+                                                            background: '#ECFDF5',
+                                                            color: '#059669',
+                                                            padding: '4px 10px',
+                                                            borderRadius: '16px',
+                                                            fontSize: '13px',
+                                                            fontWeight: '500',
+                                                            border: '1px solid #D1FAE5'
+                                                        }}>
+                                                            {b.name}
+                                                        </span>
+                                                    )) : <span className="no-data" style={{ color: '#9CA3AF', fontSize: '13px' }}>추천 미끼 없음</span>}
+                                                </div>
+                                            </div>
+                                        )}
+                                        {/* Camping Gear & Recipes (Moved Here - below weather) */}
+                                        {focusedPlace.type === 'CAMPING' && (
+                                            <div className="detail-section" style={{ marginTop: '16px', marginBottom: '16px' }}>
+
+                                                {/* Recommended Gear (Icons) */}
+                                                <h5 style={{ marginBottom: '8px', fontSize: '15px', fontWeight: 'bold' }}>🎒 추천 장비</h5>
+                                                <div className="gear-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '16px' }}>
+                                                    {recommendedGear.length > 0 ? recommendedGear.map((g) => {
+                                                        const getGearIcon = (name: string) => {
+                                                            const n = name.toLowerCase();
+                                                            if (n.includes('침낭') || n.includes('매트')) return '🛏️';
+                                                            if (n.includes('난로') || n.includes('히터')) return '🔥';
+                                                            if (n.includes('버너') || n.includes('화로')) return '🍳';
+                                                            if (n.includes('타프') || n.includes('텐트')) return '⛺';
+                                                            if (n.includes('릴선') || n.includes('전기')) return '🔌';
+                                                            if (n.includes('팩') || n.includes('펙')) return '🔩';
+                                                            if (n.includes('커튼') || n.includes('암막')) return '🪟';
+                                                            if (n.includes('스크린') || n.includes('바람')) return '🌬️';
+                                                            return '🎒';
+                                                        };
+                                                        return (
+                                                            <div key={g.id} className="gear-item" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                                                <div className="gear-icon" style={{
+                                                                    width: '48px', height: '48px', borderRadius: '12px',
+                                                                    background: g.isEssentialForWinter ? 'linear-gradient(135deg, #DBEAFE, #BFDBFE)' : 'linear-gradient(135deg, #ECFDF5, #D1FAE5)',
+                                                                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', marginBottom: '4px',
+                                                                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)', position: 'relative'
+                                                                }}>
+                                                                    {getGearIcon(g.name)}
+                                                                    {g.isEssentialForWinter && <span style={{ position: 'absolute', top: '-4px', right: '-4px', fontSize: '12px' }}>❄️</span>}
+                                                                </div>
+                                                                <span style={{ fontSize: '10px', fontWeight: '500', color: '#374151', textAlign: 'center', maxWidth: '60px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.name}</span>
+                                                            </div>
+                                                        );
+                                                    }) : <span style={{ gridColumn: '1 / -1', color: '#9CA3AF', fontSize: '13px' }}>추천 장비 없음</span>}
+                                                </div>
+
+                                                {/* Camping Recipes (Icons) */}
+                                                <h5 style={{ marginBottom: '8px', fontSize: '15px', fontWeight: 'bold' }}>🍳 추천 요리</h5>
+                                                <div className="recipe-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+                                                    {campingRecipes.length > 0 ? campingRecipes.map((r) => {
+                                                        const getRecipeIcon = (name: string) => {
+                                                            const n = name.toLowerCase();
+                                                            if (n.includes('닭') || n.includes('꼬치')) return '🍗';
+                                                            if (n.includes('삼겹') || n.includes('고기')) return '🥩';
+                                                            if (n.includes('라면') || n.includes('면')) return '🍜';
+                                                            if (n.includes('밥') || n.includes('덮밥')) return '🍚';
+                                                            if (n.includes('찌개') || n.includes('탕')) return '🍲';
+                                                            if (n.includes('구이')) return '🔥';
+                                                            if (n.includes('어묵')) return '🍢';
+                                                            return '🍳';
+                                                        };
+                                                        return (
+                                                            <div key={r.id} className="recipe-item" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                                                <div style={{
+                                                                    width: '48px', height: '48px', borderRadius: '12px',
+                                                                    background: 'linear-gradient(135deg, #FEF3C7, #FDE68A)',
+                                                                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', marginBottom: '4px',
+                                                                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                                                                }}>
+                                                                    {getRecipeIcon(r.name)}
+                                                                </div>
+                                                                <span style={{ fontSize: '10px', fontWeight: '500', color: '#374151', textAlign: 'center', maxWidth: '60px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</span>
+                                                            </div>
+                                                        );
+                                                    }) : <span style={{ gridColumn: '1 / -1', color: '#9CA3AF', fontSize: '13px' }}>추천 요리 없음</span>}
                                                 </div>
                                             </div>
                                         )}
 
-                                        {/* Camping Gear & Recipes */}
-                                        {focusedPlace.type === 'CAMPING' && (
-                                            <div className="detail-section">
-                                                <h5>⛺ 추천 장비 & 요리</h5>
-                                                <div className="gear-list">
-                                                    {recommendedGear.length > 0 ? recommendedGear.map(g => (
-                                                        <div key={g.id} className="gear-item">
-                                                            <span className="gear-name">{g.name}</span>
-                                                            {g.isEssentialForWinter && <span className="winter-tag">❄동계필수</span>}
-                                                        </div>
-                                                    )) : <span className="no-data">추천 장비 정보 없음</span>}
-                                                </div>
-                                                <div className="recipe-list" style={{ marginTop: '10px' }}>
-                                                    {campingRecipes.map(r => (
-                                                        <div key={r.id} className="recipe-card-mini">
-                                                            <span className="rc-name">🍳 {r.name}</span>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
+                                        {/* Cleanup & Review Section */}
+                                        <CleanupReviewSection placeId={String(focusedPlace.id)} />
 
                                         {/* Actions */}
                                         <div className="action-row" style={{ marginTop: '20px' }}>

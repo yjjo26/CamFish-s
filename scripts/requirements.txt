@@ -1,0 +1,21 @@
+# CamFish AI Data Collector - Python 의존성
+# 설치: pip install -r requirements.txt
+
+# Gemini AI
+google-generativeai>=0.3.0
+
+# Supabase 클라이언트
+supabase>=2.0.0
+
+# 웹 검색 (무료 DuckDuckGo)
+duckduckgo-search>=4.0.0
+
+# 웹 스크래핑
+beautifulsoup4>=4.12.0
+requests>=2.31.0
+
+# 환경 변수 로딩
+python-dotenv>=1.0.0
+
+# 유틸리티 (선택)
+lxml>=5.0.0  # BeautifulSoup 빠른 파서
