@@ -21,7 +21,8 @@
     border-radius: 24px 24px 0 0;
     box-shadow: 0 -10px 40px rgba(37, 99, 235, 0.3);
     z-index: 1000;
-    transition: height 0.5s cubic-bezier(0.19, 1, 0.22, 1);
+    transition: height 0.6s cubic-bezier(0.32, 0.72, 0, 1);
+    /* iOS-style spring damping */
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -105,6 +106,8 @@
     visibility: hidden;
     transition: opacity 0.3s ease;
     scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    /* Enable momentum scrolling on iOS */
 }
 
 /* Only visual when active */
@@ -140,6 +143,12 @@
     border-radius: 12px;
     overflow: hidden;
     backdrop-filter: blur(5px);
+    transition: transform 0.1s ease, background 0.2s ease;
+}
+
+.point-card:active {
+    transform: scale(0.96);
+    background: rgba(255, 255, 255, 0.25);
 }
 
 .card-thumb {
@@ -174,13 +183,19 @@
     border-radius: 18px;
     font-size: 13px;
     cursor: pointer;
-    transition: 0.2s;
+    transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.cat-badge:active {
+    transform: scale(0.94);
+    background: rgba(255, 255, 255, 0.3);
 }
 
 .cat-badge.active {
     background: white;
     color: var(--primary-blue);
     font-weight: bold;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 /* Detail Card Styling */
@@ -253,6 +268,12 @@
     font-size: 15px;
     font-weight: bold;
     cursor: pointer;
+    transition: transform 0.1s ease, box-shadow 0.2s ease;
+}
+
+.confirm-trip-btn:active {
+    transform: scale(0.97);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 /* =========================================
@@ -342,6 +363,7 @@ button.my-location-btn {
         opacity: 0;
         transform: translateY(-10px);
     }
+
     to {
         opacity: 1;
         transform: translateY(0);
@@ -355,8 +377,15 @@ button.my-location-btn {
 }
 
 @keyframes bounce {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-5px); }
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-5px);
+    }
 }
 
 .ai-message-content {
@@ -400,15 +429,27 @@ button.my-location-btn {
     animation: typingDot 1.4s infinite ease-in-out both;
 }
 
-.typing-dots span:nth-child(1) { animation-delay: 0s; }
-.typing-dots span:nth-child(2) { animation-delay: 0.2s; }
-.typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+.typing-dots span:nth-child(1) {
+    animation-delay: 0s;
+}
+
+.typing-dots span:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.typing-dots span:nth-child(3) {
+    animation-delay: 0.4s;
+}
 
 @keyframes typingDot {
-    0%, 80%, 100% {
+
+    0%,
+    80%,
+    100% {
         transform: scale(0);
         opacity: 0.5;
     }
+
     40% {
         transform: scale(1);
         opacity: 1;
@@ -420,9 +461,11 @@ button.my-location-btn {
     0% {
         box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.5);
     }
+
     70% {
         box-shadow: 0 0 0 15px rgba(59, 130, 246, 0);
     }
+
     100% {
         box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
     }

@@ -223,48 +223,31 @@ export const analyzeTripIntent = async (query: string, startLocation: string = '
     }
 
     try {
+
         const spotListStr = knownSpots.length > 0
-            ? `\nVERIFIED SPOTS DATABASE (Prioritize these if relevant):\n${knownSpots.map(s => `- ${s.name} (${s.type})`).join('\n')}\n`
+            ? `\nVERIFIED SPOTS (Use these IDs if matched):\n${knownSpots.map(s => `- ${s.name} (ID: ${s.id})`).join('\n')}\n`
             : "";
 
         const prompt = `
-        당신은 친절한 아웃도어 여행 가이드입니다 (낚시 & 캠핑 전문).
-        사용자 검색어: "${query}" (현재 위치: "${startLocation}")
-        
+        Analyze user intent for fishing/camping trip.
+        Query: "${query}" (Location: "${startLocation}")
         ${spotListStr}
 
-        [핵심 지시사항]
-        1. 자연어 검색어를 분석하여 의도를 파악하세요.
-        2. 검색어에서 관련된 모든 키워드를 추출하세요 (지역명, 활동, 어종, 시설 등).
-        3. 사용자에게 친근하게 대답하는 "aiMessage"를 작성하세요. 이것이 가장 중요합니다!
-        4. aiMessage는 한국어로 작성하고, 마치 친구에게 추천하듯이 자연스럽게 작성하세요.
+        [Rules]
+        1. Identify intent: FISHING, CAMPING, or GENERAL.
+        2. "destination": Best matching place name. Prefer VERIFIED SPOTS.
+        3. "aiMessage": Friendly Korean response (Start with emotion, 2 sentences max).
+        4. "searchKeywords": Extract 3-5 key terms for DB search (Region, Activity, Species).
+        5. "checklist": 5-7 essential items.
         
-        [매칭 우선순위]
-        - VERIFIED SPOTS와 검색어가 부분적으로라도 일치하면 해당 장소를 추천
-        - "을왕리", "을왕리 낚시", "을왕리 갈만한데" 모두 "을왕리 선녀바위"와 매칭되어야 함
-        
-        [searchKeywords 생성 규칙]
-        검색에 사용할 다양한 키워드들을 추출하세요:
-        - 지역명 변형 (예: "을왕리" → ["을왕리", "을왕", "인천", "영종도"])
-        - 활동 관련 (예: "낚시" → ["낚시", "포인트", "갯바위"])
-        - 목적 관련 (예: "겨울 낚시" → ["우럭", "볼락", "동절기"])
-        
-        [aiMessage 예시]
-        - "을왕리 낚시 추천해줘" → "을왕리 쪽이시군요! 🎣 지금 시즌에는 '선녀바위' 포인트가 정말 좋아요. 우럭이랑 볼락이 잘 나오거든요!"
-        - "인천 근처 캠핑장" → "인천 근처 캠핑장을 찾고 계시네요! ⛺ 몇 가지 좋은 곳을 찾아볼게요~"
-        
-        Output JSON:
+        Output JSON Schema:
         {
-            "destination": "가장 적합한 장소명 (VERIFIED SPOT과 매칭되면 정확한 이름 사용)",
+            "destination": string,
             "theme": "FISHING" | "CAMPING" | "GENERAL",
-            "aiMessage": "친근한 한국어 응답 메시지 (2-3문장, 이모지 포함)",
-            "checklist": ["item1", ...],
-            "searchKeywords": ["keyword1", "keyword2", ...],
-            "targetSpecies": [],
-            "recommendedBait": [],
-            "recommendedSpots": [{"name": "", "type": "", "address": ""}],
-            "recommendedStopovers": [{"name": "", "type": "", "reason": "", "address": ""}],
-            "checklistDetails": [{"item": "", "category": "", "recommendedShops": [{"name": "", "address": ""}]}]
+            "aiMessage": string,
+            "checklist": string[],
+            "searchKeywords": string[],
+            "recommendedSpots": [{"name": string, "type": string, "address": string}]
         }
         `;
 
@@ -272,7 +255,11 @@ export const analyzeTripIntent = async (query: string, startLocation: string = '
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }]
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: {
+                    temperature: 0.7,
+                    response_mime_type: "application/json"
+                }
             })
         });
 
@@ -282,8 +269,7 @@ export const analyzeTripIntent = async (query: string, startLocation: string = '
         const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
         if (!text) throw new Error("No response from Gemini");
 
-        const jsonStr = text.replace(/```json/g, '').replace(/```/g, '').trim();
-        const result = JSON.parse(jsonStr) as TripAnalysisResult;
+        const result = JSON.parse(text) as TripAnalysisResult;
 
         if (!result.recommendedSpots) result.recommendedSpots = [];
         if (!result.recommendedStopovers) result.recommendedStopovers = [];
@@ -394,7 +380,12 @@ export const searchPlacesWithGemini = async (keyword: string, count: number = 3)
         const response = await fetch(GEMINI_3_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: {
+                    response_mime_type: "application/json"
+                }
+            })
         });
 
         if (!response.ok) throw new Error(`Gemini 3 API Error: ${response.statusText}`);
@@ -403,8 +394,7 @@ export const searchPlacesWithGemini = async (keyword: string, count: number = 3)
         const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
         if (!text) return [];
 
-        const jsonStr = text.replace(/```json/g, '').replace(/```/g, '').trim();
-        return JSON.parse(jsonStr);
+        return JSON.parse(text);
 
     } catch (e) {
         console.error("Gemini 3 Search Failed:", e);
