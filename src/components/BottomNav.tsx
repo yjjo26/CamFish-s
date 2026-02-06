@@ -1,6 +1,12 @@
 import { useAuth } from '../contexts/AuthContext';
 import './BottomNav.css';
 
+// Icons
+import homeIcon from '../assets/icons/home.png';
+import campingIcon from '../assets/icons/camping.png';
+import fishingIcon from '../assets/icons/fishing.png';
+import profileIcon from '../assets/icons/profile.png';
+
 interface BottomNavProps {
     activeTab: string;
     onTabChange: (tab: string) => void;
@@ -11,9 +17,9 @@ const BottomNav = ({ activeTab, onTabChange, onLoginClick }: BottomNavProps) => 
     const { user, signOut } = useAuth();
 
     const tabs = [
-        { id: 'ALL', label: '전체', icon: '🏞️' },
-        { id: 'CAMPING', label: '캠핑', icon: '⛺' },
-        { id: 'FISHING', label: '낚시', icon: '🎣' },
+        { id: 'ALL', label: '전체', icon: homeIcon },
+        { id: 'CAMPING', label: '캠핑', icon: campingIcon },
+        { id: 'FISHING', label: '낚시', icon: fishingIcon },
     ];
 
     const handleAuthClick = () => {
@@ -36,13 +42,13 @@ const BottomNav = ({ activeTab, onTabChange, onLoginClick }: BottomNavProps) => 
                     className={`nav-item ${activeTab === tab.id ? 'active' : ''}`}
                     onClick={() => onTabChange(tab.id)}
                 >
-                    <span className="nav-icon">{tab.icon}</span>
+                    <img src={tab.icon} className="nav-icon-img" alt={tab.label} />
                     <span className="nav-label">{tab.label}</span>
                 </button>
             ))}
             {/* Login / My Page Button */}
             <button className="nav-item profile" onClick={handleAuthClick}>
-                <span className="nav-icon">{user ? '👤' : '🔑'}</span>
+                <img src={profileIcon} className="nav-icon-img profile" alt="Profile" />
                 <span className="nav-label">
                     {user ? (user.email?.split('@')[0] || '마이페이지') : '로그인'}
                 </span>

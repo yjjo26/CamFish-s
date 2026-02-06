@@ -232,13 +232,14 @@ const RouteSearchPanel = ({ map, activeCategory, onCategoryChange, isExpanded, o
         // 3. Create Markers
         const newMarkers = markersToRender.map(place => {
             const iconChar = place.type === 'FISHING' ? '🎣' : '⛺';
+            // Revert to original robust colors, but keep the new style
             const color = place.type === 'FISHING' ? '#2563EB' : '#10B981';
 
             const marker = new naver.maps.Marker({
                 position: new naver.maps.LatLng(place.lat, place.lng),
                 title: place.name,
                 icon: {
-                    content: `<div style="background:${color}cc;backdrop-filter:blur(4px);width:36px;height:36px;border-radius:50%;border:2px solid rgba(255,255,255,0.6);box-shadow:0 8px 32px rgba(31,38,135,0.25);display:flex;justify-content:center;align-items:center;font-size:18px;">
+                    content: `<div style="background:${color}E6;backdrop-filter:blur(4px);width:36px;height:36px;border-radius:50%;border:2px solid rgba(255,255,255,0.8);box-shadow:0 8px 32px rgba(31,38,135,0.15);display:flex;justify-content:center;align-items:center;font-size:18px;">
                                 ${iconChar}
                               </div>`,
                     anchor: new naver.maps.Point(18, 18)

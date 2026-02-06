@@ -10,36 +10,44 @@
 /* =========================================
    1. Bottom Sheet Container (Unified Pannel)
    ========================================= */
+/* =========================================
+   1. Bottom Sheet Container (Unified Pannel)
+   ========================================= */
 .bottom-sheet-container {
     position: fixed;
     bottom: 0;
     left: 0;
     right: 0;
     /* Initial Collapsed Height: Handle + Search + Nav */
-    height: 155px;
-    background: var(--primary-blue-gradient);
-    border-radius: 24px 24px 0 0;
-    box-shadow: 0 -10px 40px rgba(37, 99, 235, 0.3);
-    z-index: 1000;
+    height: 197px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(240, 249, 255, 0.98) 100%);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-radius: 32px 32px 0 0;
+    box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.1);
+    z-index: 900;
+    /* Behind BottomDock (1000) */
     transition: height 0.6s cubic-bezier(0.32, 0.72, 0, 1);
-    /* iOS-style spring damping */
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    color: white;
+    color: var(--text-primary);
+    border-top: 1px solid rgba(255, 255, 255, 0.6);
 }
 
 /* Expanded State */
 .bottom-sheet-container.active {
     height: 96vh;
+    background: #F8FAFC;
+    /* Solid background when expanded for performance */
 }
 
 .sheet-handle-bar {
-    width: 36px;
-    height: 4px;
-    background: rgba(255, 255, 255, 0.3);
-    border-radius: 2px;
-    margin: 10px auto 5px;
+    width: 48px;
+    height: 6px;
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 3px;
+    margin: 12px auto 8px;
     cursor: pointer;
     flex-shrink: 0;
 }
@@ -55,11 +63,28 @@
 /* =========================================
    2. Search Bar Area
    ========================================= */
-/* Placed at top in flux layout, so it appears above nav in collapsed mode */
 .glass-search-bar-container {
-    padding: 8px 16px;
+    padding: 10px 20px;
     flex-shrink: 0;
     z-index: 10;
+}
+
+.glass-search-input-box {
+    background: white;
+    border-radius: 20px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    padding: 0 18px;
+    box-shadow: 0 4px 16px rgba(148, 163, 184, 0.15);
+    border: 1px solid rgba(226, 232, 240, 0.8);
+    transition: all 0.2s ease;
+}
+
+.glass-search-input-box:focus-within {
+    box-shadow: 0 4px 20px rgba(14, 165, 233, 0.2);
+    border-color: var(--primary-color);
+    transform: translateY(-1px);
 }
 
 .glass-search-input-box {
@@ -122,28 +147,30 @@
 }
 
 .section-title {
-    font-size: 16px;
+    font-size: 17px;
     font-weight: 700;
     margin-bottom: 12px;
-    color: white;
+    color: var(--text-primary);
+    padding-left: 4px;
 }
 
 .horizontal-scroll-list {
     display: flex;
-    gap: 12px;
+    gap: 14px;
     overflow-x: auto;
-    padding-bottom: 5px;
+    padding: 0 4px 10px;
+    /* Add padding for shadow clipping */
     scrollbar-width: none;
 }
 
 .point-card {
-    min-width: 120px;
-    background: rgba(255, 255, 255, 0.15);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 12px;
+    min-width: 140px;
+    background: white;
+    border: 1px solid rgba(0, 0, 0, 0.04);
+    border-radius: 16px;
     overflow: hidden;
-    backdrop-filter: blur(5px);
-    transition: transform 0.1s ease, background 0.2s ease;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .point-card:active {
@@ -163,27 +190,32 @@
 
 .card-name {
     display: block;
-    font-size: 13px;
-    font-weight: bold;
-    color: white;
-    margin-bottom: 2px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .card-desc {
-    font-size: 11px;
-    color: rgba(255, 255, 255, 0.8);
+    font-size: 12px;
+    color: var(--text-secondary);
 }
 
 /* Category Badges */
 .cat-badge {
-    background: rgba(255, 255, 255, 0.2);
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    color: white;
-    padding: 6px 14px;
-    border-radius: 18px;
-    font-size: 13px;
+    background: white;
+    border: 1px solid #E2E8F0;
+    color: var(--text-secondary);
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 500;
     cursor: pointer;
     transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .cat-badge:active {
