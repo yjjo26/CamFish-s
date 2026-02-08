@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import profileIcon from '../assets/icons/profile.png';
 import './AuthPage.css';
 
 type AuthMode = 'login' | 'signup';
@@ -88,8 +89,12 @@ const AuthPage = ({ onClose }: AuthPageProps) => {
                 )}
 
                 {/* Logo / Title */}
+                {/* Logo / Title */}
+
                 <div className="auth-header">
-                    <span className="auth-logo">🎣⛺</span>
+                    <div className="auth-icon-wrapper">
+                        <img src={profileIcon} alt="Profile" className="auth-logo-3d" />
+                    </div>
                     <h1 className="auth-title">CamFish</h1>
                     <p className="auth-subtitle">낚시 & 캠핑 여행의 시작</p>
                 </div>

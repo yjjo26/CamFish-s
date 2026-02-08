@@ -399,12 +399,33 @@ export const fetchBaits = fetchBaitsForMultipleSpecies;
 export const fetchVerifiedSpots = async () => {
     const { data, error } = await supabase
         .from('places')
-        .select('id, name, type, lat, lng, image_url, description')
+        .select('id, name, type, address, description, location')
         .in('type', ['FISHING', 'CAMPING']);
 
     if (error) {
         console.error('Error fetching verified spots:', error);
         return [];
     }
-    return data || [];
+
+    // location GEOGRAPHY에서 좌표 추출 (format: "POINT(lng lat)")
+    return (data || []).map((place: any) => {
+        let lat = 0, lng = 0;
+        if (place.location) {
+            // location 문자열에서 좌표 추출: "POINT(127.123 37.456)" 형식
+            const match = String(place.location).match(/POINT\(([-\d.]+)\s+([-\d.]+)\)/);
+            if (match) {
+                lng = parseFloat(match[1]);
+                lat = parseFloat(match[2]);
+            }
+        }
+        return {
+            id: place.id,
+            name: place.name,
+            type: place.type,
+            address: place.address,
+            lat,
+            lng,
+            description: place.description
+        };
+    });
 };

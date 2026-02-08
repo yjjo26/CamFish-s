@@ -24,7 +24,28 @@ export const fetchPlaces = async (): Promise<Place[]> => {
         return [];
     }
 
-    return data as Place[];
+    // location GEOGRAPHY에서 좌표 추출 (format: "POINT(lng lat)")
+    return (data || []).map((place: any) => {
+        let lat = 0, lng = 0;
+        if (place.location) {
+            const match = String(place.location).match(/POINT\(([-\d.]+)\s+([-\d.]+)\)/);
+            if (match) {
+                lng = parseFloat(match[1]);
+                lat = parseFloat(match[2]);
+            }
+        }
+        return {
+            id: place.id,
+            name: place.name,
+            type: place.type,
+            address: place.address || '',
+            lat,
+            lng,
+            desc: place.description,
+            description: place.description,
+            image_url: undefined  // 스키마에 없는 컬럼이므로 undefined
+        } as Place;
+    });
 };
 
 // Fallback/Legacy export if needed, or we can just export an empty array to satisfy types for now

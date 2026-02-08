@@ -13,11 +13,11 @@ import MarkerClustering from '../lib/MarkerClustering';
 import './RouteSearchPanel.css';
 
 const POPULAR_POINTS = [
-    { id: 'p1', name: '을왕리 선녀바위', image: 'https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=200&h=200&fit=crop', desc: '서울 근교 국민 포인트' },
-    { id: 'p2', name: '궁평항 피싱피어', image: 'https://images.unsplash.com/photo-1516939884455-1445c8652f83?w=200&h=200&fit=crop', desc: '가족 낚시 추천' },
-    { id: 'p3', name: '시화방조제', image: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=200&h=200&fit=crop', desc: '우럭/광어 손맛' },
-    { id: 'p4', name: '가평 자라섬', image: 'https://images.unsplash.com/photo-1504280390367-361c6d9f38f4?w=200&h=200&fit=crop', desc: '캠핑 페스티벌' },
-    { id: 'p5', name: '몽산포 캠핑장', image: 'https://images.unsplash.com/photo-1523987355523-c7b5b0dd90a7?w=200&h=200&fit=crop', desc: '갯벌 체험 가능한 곳' }
+    { id: 'p1', name: '을왕리 선녀바위', image: 'https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=200&h=200&fit=crop', desc: '서울 근교 국민 포인트', lat: 37.4475, lng: 126.3727 },
+    { id: 'p2', name: '궁평항 피싱피어', image: 'https://images.unsplash.com/photo-1516939884455-1445c8652f83?w=200&h=200&fit=crop', desc: '가족 낚시 추천', lat: 37.1158, lng: 126.6961 },
+    { id: 'p3', name: '시화방조제', image: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=200&h=200&fit=crop', desc: '우럭/광어 손맛', lat: 37.3101, lng: 126.6027 },
+    { id: 'p4', name: '가평 자라섬', image: 'https://images.unsplash.com/photo-1504280390367-361c6d9f38f4?w=200&h=200&fit=crop', desc: '캠핑 페스티벌', lat: 37.8188, lng: 127.5255 },
+    { id: 'p5', name: '몽산포 캠핑장', image: 'https://images.unsplash.com/photo-1523987355523-c7b5b0dd90a7?w=200&h=200&fit=crop', desc: '갯벌 체험 가능한 곳', lat: 36.6713, lng: 126.2844 }
 ];
 
 interface RouteSearchPanelProps {
@@ -851,10 +851,8 @@ const RouteSearchPanel = ({ map, activeCategory, onCategoryChange, isExpanded, o
                                     {POPULAR_POINTS.map(point => (
                                         <div key={point.id} className="point-card" onClick={async (e) => {
                                             e.stopPropagation();
-                                            // Popular places need geocoding if coords not predefined, but for now we trust name. 
-                                            // Better: resolveCoordinates will check 'places' state if we preload them.
-                                            // Assuming POPULAR_POINTS names exist in 'places' or will be geocoded.
-                                            handleStartRealNavigation(point.name);
+                                            // Use predefined coordinates to bypass geocoding
+                                            handleStartRealNavigation(point.name, { lat: point.lat, lng: point.lng });
                                         }}>
                                             <div className="card-thumb" style={{ backgroundImage: `url(${point.image})` }}></div>
                                             <div className="card-info">
@@ -956,185 +954,95 @@ const RouteSearchPanel = ({ map, activeCategory, onCategoryChange, isExpanded, o
 
                                 {/* Focused Place Detail */}
                                 {focusedPlace && !tripResult && (
-                                    <div className="place-detail-card">
-                                        <div className="place-header">
-                                            <div className="place-title-row">
-                                                <h3>{focusedPlace.name}</h3>
-                                                <span className={`type-tag ${focusedPlace.type}`}>{focusedPlace.type === 'FISHING' ? '낚시' : '캠핑'}</span>
-                                            </div>
-                                            <p className="place-addr">{focusedPlace.address}</p>
-                                        </div>
-
-                                        {/* Weather & Tide Widget */}
-                                        <div className="weather-widget">
-                                            <div className="info-row">
-                                                <span className="info-icon">🌤</span>
-                                                <span className="info-label">기상:</span>
-                                                <span className="info-val">{currentWeather ? `${currentWeather.temp}°C / ${currentWeather.condition}` : '로딩중...'}</span>
-                                            </div>
-                                            <div className="info-row">
-                                                <span className="info-icon">🌊</span>
-                                                <span className="info-label">물때:</span>
-                                                {/* @ts-ignore */}
-                                                <span className="info-val">{currentTide ? `물때: ${currentTide.score}` : '로딩중...'}</span>
-                                            </div>
-                                        </div>
-
-                                        {/* Fishing Species & Baits (Moved Here) */}
-                                        {focusedPlace.type === 'FISHING' && (
-                                            <div className="detail-section" style={{ marginTop: '16px', marginBottom: '16px' }}>
-
-                                                {/* Major Species (Icons) */}
-                                                <h5 style={{ marginBottom: '8px', fontSize: '15px', fontWeight: 'bold' }}>🐟 주요 어종</h5>
-                                                <div className="species-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '16px' }}>
-                                                    {currentSpecies.length > 0 ? currentSpecies.map((s) => {
-                                                        // Fish icon mapping
-                                                        const getFishIcon = (name: string) => {
-                                                            const n = name.toLowerCase();
-                                                            if (n.includes('오징어') || n.includes('한치')) return '🦑';
-                                                            if (n.includes('문어') || n.includes('쭈꾸미')) return '🐙';
-                                                            if (n.includes('새우') || n.includes('대하')) return '🦐';
-                                                            if (n.includes('게') || n.includes('꽃게')) return '🦀';
-                                                            if (n.includes('조개') || n.includes('굴')) return '🦪';
-                                                            if (n.includes('고래') || n.includes('돌고래')) return '🐳';
-                                                            if (n.includes('상어')) return '🦈';
-                                                            if (n.includes('복어')) return '🐡';
-                                                            if (n.includes('열대') || n.includes('니모')) return '🐠';
-                                                            return '🐟'; // Default fish
-                                                        };
-                                                        return (
-                                                            <div key={s.id} className="species-item" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                                                                <div className="sp-icon" style={{
-                                                                    width: '48px',
-                                                                    height: '48px',
-                                                                    borderRadius: '12px',
-                                                                    background: 'linear-gradient(135deg, #EFF6FF, #DBEAFE)',
-                                                                    display: 'flex',
-                                                                    alignItems: 'center',
-                                                                    justifyContent: 'center',
-                                                                    fontSize: '24px',
-                                                                    marginBottom: '4px',
-                                                                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-                                                                }}>
-                                                                    {getFishIcon(s.name)}
-                                                                </div>
-                                                                <span className="sp-name" style={{ fontSize: '11px', fontWeight: '500', color: '#374151', textAlign: 'center' }}>{s.name}</span>
-                                                            </div>
-                                                        );
-                                                    }) : <span className="no-data" style={{ gridColumn: '1 / -1', color: '#9CA3AF', fontSize: '13px' }}>정보 없음</span>}
+                                    <div className="detail-content-area">
+                                        <div className="glass-card">
+                                            <div className="place-header">
+                                                <div className="place-title-row">
+                                                    <h3>{focusedPlace.name}</h3>
+                                                    <span className={`type-tag ${focusedPlace.type}`}>{focusedPlace.type === 'FISHING' ? '낚시' : '캠핑'}</span>
                                                 </div>
+                                                <p className="place-addr">{focusedPlace.address}</p>
+                                            </div>
 
-                                                {/* Recommended Baits (Text) */}
-                                                <h5 style={{ marginBottom: '8px', fontSize: '15px', fontWeight: 'bold' }}>🪱 추천 미끼</h5>
-                                                <div className="bait-list-row" style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                                                    {currentBaits.length > 0 ? currentBaits.map(b => (
-                                                        <span key={b.id} className="bait-tag" style={{
-                                                            background: '#ECFDF5',
-                                                            color: '#059669',
-                                                            padding: '4px 10px',
-                                                            borderRadius: '16px',
-                                                            fontSize: '13px',
-                                                            fontWeight: '500',
-                                                            border: '1px solid #D1FAE5'
-                                                        }}>
-                                                            {b.name}
-                                                        </span>
-                                                    )) : <span className="no-data" style={{ color: '#9CA3AF', fontSize: '13px' }}>추천 미끼 없음</span>}
+                                            {/* Consolidated Info Strip */}
+                                            <div className="info-strip">
+                                                <div className="info-card-small">
+                                                    <span className="info-icon-large">🌤</span>
+                                                    <span className="info-label-small">Weather</span>
+                                                    <span className="info-value-bold">{currentWeather ? `${currentWeather.temp}°` : '--'}</span>
+                                                </div>
+                                                <div className="info-card-small">
+                                                    <span className="info-icon-large">🌊</span>
+                                                    <span className="info-label-small">Tide</span>
+                                                    <span className="info-value-bold">{currentTide ? `Score ${currentTide.score}` : '--'}</span>
+                                                </div>
+                                                <div className="info-card-small">
+                                                    <span className="info-icon-large">📍</span>
+                                                    <span className="info-label-small">Distance</span>
+                                                    <span className="info-value-bold">- km</span>
                                                 </div>
                                             </div>
-                                        )}
-                                        {/* Camping Gear & Recipes (Moved Here - below weather) */}
-                                        {focusedPlace.type === 'CAMPING' && (
-                                            <div className="detail-section" style={{ marginTop: '16px', marginBottom: '16px' }}>
 
-                                                {/* Recommended Gear (Icons) */}
-                                                <h5 style={{ marginBottom: '8px', fontSize: '15px', fontWeight: 'bold' }}>🎒 추천 장비</h5>
-                                                <div className="gear-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '16px' }}>
-                                                    {recommendedGear.length > 0 ? recommendedGear.map((g) => {
-                                                        const getGearIcon = (name: string) => {
-                                                            const n = name.toLowerCase();
-                                                            if (n.includes('침낭') || n.includes('매트')) return '🛏️';
-                                                            if (n.includes('난로') || n.includes('히터')) return '🔥';
-                                                            if (n.includes('버너') || n.includes('화로')) return '🍳';
-                                                            if (n.includes('타프') || n.includes('텐트')) return '⛺';
-                                                            if (n.includes('릴선') || n.includes('전기')) return '🔌';
-                                                            if (n.includes('팩') || n.includes('펙')) return '🔩';
-                                                            if (n.includes('커튼') || n.includes('암막')) return '🪟';
-                                                            if (n.includes('스크린') || n.includes('바람')) return '🌬️';
-                                                            return '🎒';
-                                                        };
-                                                        return (
-                                                            <div key={g.id} className="gear-item" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                                                                <div className="gear-icon" style={{
-                                                                    width: '48px', height: '48px', borderRadius: '12px',
-                                                                    background: g.isEssentialForWinter ? 'linear-gradient(135deg, #DBEAFE, #BFDBFE)' : 'linear-gradient(135deg, #ECFDF5, #D1FAE5)',
-                                                                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', marginBottom: '4px',
-                                                                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)', position: 'relative'
-                                                                }}>
-                                                                    {getGearIcon(g.name)}
-                                                                    {g.isEssentialForWinter && <span style={{ position: 'absolute', top: '-4px', right: '-4px', fontSize: '12px' }}>❄️</span>}
-                                                                </div>
-                                                                <span style={{ fontSize: '10px', fontWeight: '500', color: '#374151', textAlign: 'center', maxWidth: '60px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.name}</span>
-                                                            </div>
-                                                        );
-                                                    }) : <span style={{ gridColumn: '1 / -1', color: '#9CA3AF', fontSize: '13px' }}>추천 장비 없음</span>}
-                                                </div>
+                                            <div className="divider" style={{ height: '1px', background: 'rgba(0,0,0,0.06)', margin: '20px 0' }}></div>
 
-                                                {/* Camping Recipes (Icons) */}
-                                                <h5 style={{ marginBottom: '8px', fontSize: '15px', fontWeight: 'bold' }}>🍳 추천 요리</h5>
-                                                <div className="recipe-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
-                                                    {campingRecipes.length > 0 ? campingRecipes.map((r) => {
-                                                        const getRecipeIcon = (name: string) => {
-                                                            const n = name.toLowerCase();
-                                                            if (n.includes('닭') || n.includes('꼬치')) return '🍗';
-                                                            if (n.includes('삼겹') || n.includes('고기')) return '🥩';
-                                                            if (n.includes('라면') || n.includes('면')) return '🍜';
-                                                            if (n.includes('밥') || n.includes('덮밥')) return '🍚';
-                                                            if (n.includes('찌개') || n.includes('탕')) return '🍲';
-                                                            if (n.includes('구이')) return '🔥';
-                                                            if (n.includes('어묵')) return '🍢';
-                                                            return '🍳';
-                                                        };
-                                                        return (
-                                                            <div key={r.id} className="recipe-item" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                                                                <div style={{
-                                                                    width: '48px', height: '48px', borderRadius: '12px',
-                                                                    background: 'linear-gradient(135deg, #FEF3C7, #FDE68A)',
-                                                                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', marginBottom: '4px',
-                                                                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-                                                                }}>
-                                                                    {getRecipeIcon(r.name)}
-                                                                </div>
-                                                                <span style={{ fontSize: '10px', fontWeight: '500', color: '#374151', textAlign: 'center', maxWidth: '60px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</span>
-                                                            </div>
-                                                        );
-                                                    }) : <span style={{ gridColumn: '1 / -1', color: '#9CA3AF', fontSize: '13px' }}>추천 요리 없음</span>}
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        {/* Cleanup & Review Section */}
-                                        <CleanupReviewSection placeId={String(focusedPlace.id)} />
-
-                                        {/* Actions */}
-                                        <div className="action-row" style={{ marginTop: '20px' }}>
-                                            <button className="confirm-trip-btn" onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleStartRealNavigation(focusedPlace.name, { lat: focusedPlace.lat, lng: focusedPlace.lng });
-                                            }}>
-                                                🚗 길안내 시작
-                                            </button>
+                                            {/* Fishing Section */}
                                             {focusedPlace.type === 'FISHING' && (
-                                                <button className="confirm-trip-btn" style={{ background: '#F59E0B' }} onClick={async (e) => {
-                                                    e.stopPropagation();
-                                                    // Find Bait Shop Logic
-                                                    const shops = await fetchBaitShops(focusedPlace.lat, focusedPlace.lng);
-                                                    setNearbyShops(shops);
-                                                    alert(`${shops.length}개의 낚시점을 찾았습니다.`);
-                                                }}>
-                                                    🎣 낚시점 찾기
-                                                </button>
+                                                <>
+                                                    <div className="section-header">🐟 주요 어종</div>
+                                                    <div className="mini-grid">
+                                                        {currentSpecies.length > 0 ? currentSpecies.map((s) => (
+                                                            <div key={s.id} className="mini-glass-item">
+                                                                <div className="mini-icon-box">🐟</div>
+                                                                <span className="mini-label">{s.name}</span>
+                                                            </div>
+                                                        )) : <span className="no-data">정보 없음</span>}
+                                                    </div>
+
+                                                    <div className="section-header">🪱 추천 미끼</div>
+                                                    <div className="bait-list-row" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                                        {currentBaits.map(b => (
+                                                            <span key={b.id} className="bait-tag" style={{ background: '#ECFDF5', color: '#059669', padding: '6px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: '600' }}>{b.name}</span>
+                                                        ))}
+                                                    </div>
+                                                </>
                                             )}
+
+                                            {/* Camping Section */}
+                                            {focusedPlace.type === 'CAMPING' && (
+                                                <>
+                                                    <div className="section-header">🎒 추천 장비</div>
+                                                    <div className="mini-grid">
+                                                        {recommendedGear.map((g) => (
+                                                            <div key={g.id} className="mini-glass-item">
+                                                                <div className="mini-icon-box">
+                                                                    {g.isEssentialForWinter ? '❄️' : '🎒'}
+                                                                </div>
+                                                                <span className="mini-label">{g.name}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+
+                                                    <div className="section-header">🍳 캠핑 요리</div>
+                                                    <div className="mini-grid">
+                                                        {campingRecipes.map((r) => (
+                                                            <div key={r.id} className="mini-glass-item">
+                                                                <div className="mini-icon-box">🍳</div>
+                                                                <span className="mini-label">{r.name}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </>
+                                            )}
+
+                                            {/* Actions */}
+                                            <div className="action-row" style={{ marginTop: '30px' }}>
+                                                <button className="confirm-trip-btn" onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleStartRealNavigation(focusedPlace.name, { lat: focusedPlace.lat, lng: focusedPlace.lng });
+                                                }}>
+                                                    🚗 길안내 시작
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                 )}
@@ -1145,14 +1053,14 @@ const RouteSearchPanel = ({ map, activeCategory, onCategoryChange, isExpanded, o
                         {isExpanded && !tripResult && !focusedPlace && (
                             <div className="recent-search-section" style={{ padding: '0 10px' }}>
                                 <h4 style={{ margin: '20px 0 15px', color: 'rgba(255,255,255,0.7)', fontSize: '13px', letterSpacing: '1px' }}>RECENT SEARCH</h4>
-                                <div className="recent-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '15px', color: 'white' }}>
+                                <div className="recent-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '15px', color: 'black' }}>
                                     <div className="recent-icon" style={{ width: '36px', height: '36px', background: 'rgba(255,255,255,0.2)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: '12px' }}>🕒</div>
                                     <div className="recent-info">
                                         <div className="recent-title" style={{ fontWeight: 'bold', fontSize: '15px' }}>을왕리 해수욕장</div>
                                         <div className="recent-sub" style={{ fontSize: '12px', opacity: 0.7 }}>인천 중구</div>
                                     </div>
                                 </div>
-                                <div className="recent-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '15px', color: 'white' }}>
+                                <div className="recent-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '15px', color: 'black' }}>
                                     <div className="recent-icon" style={{ width: '36px', height: '36px', background: 'rgba(255,255,255,0.2)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: '12px' }}>🕒</div>
                                     <div className="recent-info">
                                         <div className="recent-title" style={{ fontWeight: 'bold', fontSize: '15px' }}>가평 자라섬</div>

@@ -4,7 +4,9 @@ import Map from './components/Map';
 import RouteSearchPanel from './components/RouteSearchPanel';
 import BottomNav from './components/BottomNav';
 import AuthPage from './components/AuthPage';
+import PlaceList from './components/PlaceList'; // PlaceList 컴포넌트 임포트
 import './App.css';
+
 
 // Main App Content
 function MainApp() {
@@ -40,6 +42,9 @@ function MainApp() {
             {showAuthPage && (
                 <AuthPage onClose={() => setShowAuthPage(false)} />
             )}
+
+            {/* PlaceList 컴포넌트를 추가하여 Supabase 데이터를 표시 */}
+            <PlaceList />
         </div>
     );
 }

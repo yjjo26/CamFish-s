@@ -132,34 +132,44 @@ CREATE TABLE IF NOT EXISTS public.spot_gear_recommendation (
 -- ==============================================================================
 
 ALTER TABLE public.places ENABLE ROW LEVEL SECURITY;
-CREATE POLICY IF NOT EXISTS "Public read access for places" ON public.places FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read access for places" ON public.places;
+CREATE POLICY "Public read access for places" ON public.places FOR SELECT USING (true);
 
 ALTER TABLE public.fish_species ENABLE ROW LEVEL SECURITY;
-CREATE POLICY IF NOT EXISTS "Public read access for fish_species" ON public.fish_species FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read access for fish_species" ON public.fish_species;
+CREATE POLICY "Public read access for fish_species" ON public.fish_species FOR SELECT USING (true);
 
 ALTER TABLE public.baits ENABLE ROW LEVEL SECURITY;
-CREATE POLICY IF NOT EXISTS "Public read access for baits" ON public.baits FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read access for baits" ON public.baits;
+CREATE POLICY "Public read access for baits" ON public.baits FOR SELECT USING (true);
 
 ALTER TABLE public.species_bait_map ENABLE ROW LEVEL SECURITY;
-CREATE POLICY IF NOT EXISTS "Public read access for species_bait_map" ON public.species_bait_map FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read access for species_bait_map" ON public.species_bait_map;
+CREATE POLICY "Public read access for species_bait_map" ON public.species_bait_map FOR SELECT USING (true);
 
 ALTER TABLE public.location_species_map ENABLE ROW LEVEL SECURITY;
-CREATE POLICY IF NOT EXISTS "Public read access for location_species_map" ON public.location_species_map FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read access for location_species_map" ON public.location_species_map;
+CREATE POLICY "Public read access for location_species_map" ON public.location_species_map FOR SELECT USING (true);
 
 ALTER TABLE public.camping_gear ENABLE ROW LEVEL SECURITY;
-CREATE POLICY IF NOT EXISTS "Public read access for camping_gear" ON public.camping_gear FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read access for camping_gear" ON public.camping_gear;
+CREATE POLICY "Public read access for camping_gear" ON public.camping_gear FOR SELECT USING (true);
 
 ALTER TABLE public.camping_recipes ENABLE ROW LEVEL SECURITY;
-CREATE POLICY IF NOT EXISTS "Public read access for camping_recipes" ON public.camping_recipes FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read access for camping_recipes" ON public.camping_recipes;
+CREATE POLICY "Public read access for camping_recipes" ON public.camping_recipes FOR SELECT USING (true);
 
 ALTER TABLE public.amenity_details ENABLE ROW LEVEL SECURITY;
-CREATE POLICY IF NOT EXISTS "Public read access for amenity_details" ON public.amenity_details FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read access for amenity_details" ON public.amenity_details;
+CREATE POLICY "Public read access for amenity_details" ON public.amenity_details FOR SELECT USING (true);
 
 ALTER TABLE public.camping_spot_details ENABLE ROW LEVEL SECURITY;
-CREATE POLICY IF NOT EXISTS "Public read access for camping_spot_details" ON public.camping_spot_details FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read access for camping_spot_details" ON public.camping_spot_details;
+CREATE POLICY "Public read access for camping_spot_details" ON public.camping_spot_details FOR SELECT USING (true);
 
 ALTER TABLE public.spot_gear_recommendation ENABLE ROW LEVEL SECURITY;
-CREATE POLICY IF NOT EXISTS "Public read access for spot_gear_recommendation" ON public.spot_gear_recommendation FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read access for spot_gear_recommendation" ON public.spot_gear_recommendation;
+CREATE POLICY "Public read access for spot_gear_recommendation" ON public.spot_gear_recommendation FOR SELECT USING (true);
 
 -- ==============================================================================
 -- END OF SCHEMA

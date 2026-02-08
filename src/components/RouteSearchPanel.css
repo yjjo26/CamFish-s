@@ -20,11 +20,14 @@
     right: 0;
     /* Initial Collapsed Height: Handle + Search + Nav */
     height: 197px;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(240, 249, 255, 0.98) 100%);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
+    /* Glassmorphism - Ultra transparent for map visibility */
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.15) 0%, rgba(245, 250, 255, 0.2) 100%);
+    backdrop-filter: saturate(180%) blur(30px);
+    -webkit-backdrop-filter: saturate(180%) blur(30px);
     border-radius: 32px 32px 0 0;
-    box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.1);
+    box-shadow:
+        0 -8px 32px rgba(0, 0, 0, 0.08),
+        inset 0 1px 1px rgba(255, 255, 255, 0.4);
     z-index: 900;
     /* Behind BottomDock (1000) */
     transition: height 0.6s cubic-bezier(0.32, 0.72, 0, 1);
@@ -32,7 +35,7 @@
     flex-direction: column;
     overflow: hidden;
     color: var(--text-primary);
-    border-top: 1px solid rgba(255, 255, 255, 0.6);
+    border-top: 1px solid rgba(255, 255, 255, 0.3);
 }
 
 /* Expanded State */
@@ -201,10 +204,31 @@
 
 .card-desc {
     font-size: 12px;
-    color: var(--text-secondary);
+    color: #6B7280;
+    line-height: 1.4;
 }
 
-/* Category Badges */
+/* Search Bar - Floating Island Style */
+.search-bar {
+    margin: 10px 20px;
+    padding: 6px 6px 6px 16px;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.8);
+    transition: all 0.3s ease;
+}
+
+.search-bar:focus-within {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 28px rgba(74, 108, 247, 0.15);
+    /* Primary color glow */
+    border-color: rgba(74, 108, 247, 0.3);
+}
+
 .cat-badge {
     background: white;
     border: 1px solid #E2E8F0;
@@ -230,19 +254,136 @@
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
-/* Detail Card Styling */
+/* Detail Card Styling - Consolidated & Glassy */
 .detail-content-area {
-    background: white;
-    border-radius: 20px;
-    padding: 20px;
-    color: #1F2937;
+    /* Wrapper for detail view */
+    padding-bottom: 20px;
+}
+
+.glass-card {
+    background: rgba(255, 255, 255, 0.6);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-radius: 24px;
+    padding: 24px;
+    margin-bottom: 16px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+}
+
+.place-header {
     margin-bottom: 20px;
 }
 
 .place-header h3 {
     margin: 0;
-    font-size: 20px;
+    font-size: 26px;
+    /* Larger Hero Title */
+    font-weight: 800;
     color: #111;
+    letter-spacing: -0.5px;
+}
+
+.place-addr {
+    font-size: 14px;
+    color: #6B7280;
+    margin-top: 4px;
+}
+
+/* Consolidated Info Strip (Weather/Tide) */
+.info-strip {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 24px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    /* for shadow */
+    scrollbar-width: none;
+}
+
+.info-card-small {
+    flex: 1;
+    min-width: 100px;
+    background: rgba(255, 255, 255, 0.5);
+    border-radius: 18px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+.info-icon-large {
+    font-size: 24px;
+}
+
+.info-label-small {
+    font-size: 11px;
+    color: #6B7280;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.info-value-bold {
+    font-size: 14px;
+    font-weight: 700;
+    color: #1F2937;
+}
+
+/* Mini Grid for Species/Gear */
+.section-header {
+    font-size: 15px;
+    font-weight: 700;
+    color: #374151;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.mini-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-bottom: 24px;
+}
+
+.mini-glass-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+}
+
+.mini-icon-box {
+    width: 52px;
+    height: 52px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 26px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    transition: transform 0.2s;
+}
+
+.mini-icon-box:active {
+    transform: scale(0.92);
+}
+
+.mini-label {
+    font-size: 11px;
+    font-weight: 500;
+    color: #4B5563;
+    text-align: center;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .type-tag {
