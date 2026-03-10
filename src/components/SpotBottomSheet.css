@@ -1,0 +1,70 @@
+.spot-bottom-sheet-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1050;
+    /* Above BottomNav */
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    background: rgba(0, 0, 0, 0.4);
+    /* Dim map slightly */
+    animation: fadeIn 0.3s ease-out;
+}
+
+.spot-bottom-sheet-container {
+    /* Base styles are now mostly handled inline in TSX */
+    display: flex;
+    flex-direction: column;
+}
+
+.sheet-handle-bar {
+    width: 48px;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+/* Custom Scrollbar for the bottom sheet content */
+.spot-bottom-sheet-container .overflow-y-auto::-webkit-scrollbar {
+    width: 4px;
+}
+
+.spot-bottom-sheet-container .overflow-y-auto::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.spot-bottom-sheet-container .overflow-y-auto::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(100%);
+    }
+
+    to {
+        transform: translateY(0);
+    }
+}
+
+@keyframes slideDown {
+    from {
+        transform: translateY(0);
+    }
+
+    to {
+        transform: translateY(100%);
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
