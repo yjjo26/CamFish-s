@@ -11,7 +11,7 @@ import './App.css';
 // Main App Content
 function MainApp() {
     const [mapInstance, setMapInstance] = useState<naver.maps.Map | null>(null);
-    const [activeCategory, setActiveCategory] = useState<'ALL' | 'NONE' | 'FISHING' | 'CAMPING'>('ALL');
+    const [activeCategory, setActiveCategory] = useState<'ALL' | 'NONE' | 'FISHING' | 'CAMPING' | 'CLEANUP'>('ALL');
     const [isSheetExpanded, setIsSheetExpanded] = useState(false);
     const [showAuthPage, setShowAuthPage] = useState(false);
 
@@ -33,7 +33,7 @@ function MainApp() {
             <BottomNav
                 activeTab={activeCategory}
                 onTabChange={(tab) => {
-                    setActiveCategory(tab as 'NONE' | 'FISHING' | 'CAMPING');
+                    setActiveCategory(tab as 'NONE' | 'FISHING' | 'CAMPING' | 'CLEANUP');
                 }}
                 onLoginClick={() => setShowAuthPage(true)}
             />

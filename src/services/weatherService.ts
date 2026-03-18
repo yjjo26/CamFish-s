@@ -12,7 +12,7 @@ export interface TideData {
 }
 
 // Mock Data Generator
-export const fetchWeather = async (lat: number, lng: number): Promise<WeatherData> => {
+export const fetchWeather = async (_lat: number, _lng: number): Promise<WeatherData> => {
     // In a real app, call OpenWeatherMap or KMA API provided by user
     // Returning mock data for now
     return new Promise(resolve => {
@@ -27,7 +27,7 @@ export const fetchWeather = async (lat: number, lng: number): Promise<WeatherDat
     });
 };
 
-export const fetchTide = async (lat: number, lng: number, date: Date = new Date()): Promise<TideData> => {
+export const fetchTide = async (_lat: number, _lng: number, _date: Date = new Date()): Promise<TideData> => {
     // Mock Tide Logic
     return new Promise(resolve => {
         setTimeout(() => {

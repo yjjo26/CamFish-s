@@ -42,7 +42,7 @@ interface CleanupReviewSectionProps {
     placeId: string; // Not used for now (Mock mode)
 }
 
-const CleanupReviewSection = ({ placeId }: CleanupReviewSectionProps) => {
+const CleanupReviewSection = ({ placeId: _placeId }: CleanupReviewSectionProps) => {
     const [reviews, setReviews] = useState<Review[]>(MOCK_REVIEWS);
     const [isWriting, setIsWriting] = useState(false);
 

@@ -1079,9 +1079,9 @@ const RouteSearchPanel = ({ map, activeCategory, onCategoryChange, isExpanded, o
                                         {/* Top 5 Carousel */}
                                         {top5Spots.length > 0 && (
                                             <div className="top5-carousel-section">
-                                                <div className="flex items-center gap-2 mb-3">
-                                                    <span className="material-symbols-outlined text-amber-400 text-sm">Target</span>
-                                                    <h5 className="text-white text-sm font-bold uppercase tracking-wider">Top 5 매칭 스팟</h5>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                                                    <span className="material-symbols-outlined" style={{ color: '#d97706', fontSize: '16px' }}>Target</span>
+                                                    <h5 style={{ margin: 0, color: '#1e293b', fontSize: '13px', fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '1px' }}>Top 5 매칭 스팟</h5>
                                                 </div>
                                                 <div className="top5-carousel-container custom-scrollbar" style={{
                                                     display: 'flex', overflowX: 'auto', gap: '12px', paddingBottom: '12px', scrollSnapType: 'x mandatory'
@@ -1102,18 +1102,17 @@ const RouteSearchPanel = ({ map, activeCategory, onCategoryChange, isExpanded, o
                                                             onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
                                                             onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.transform = 'translateY(0)'; }}
                                                         >
-                                                            <div className="flex justify-between items-start">
-                                                                <div className="flex items-center gap-2">
-                                                                    <div className="size-6 rounded-full flex items-center justify-center font-bold text-xs" style={{ background: '#F59E0B', color: '#fff' }}>{idx + 1}</div>
-                                                                    <span className="text-white font-bold truncate max-w-[120px]">{spot.name}</span>
+                                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                                    <div style={{ width: '24px', height: '24px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '11px', background: '#F59E0B', color: '#fff' }}>{idx + 1}</div>
+                                                                    <span style={{ color: '#1e293b', fontWeight: 700, maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{spot.name}</span>
                                                                 </div>
-                                                                {/* Mock Match Rate since DB doesn't have it explicitly right now, or generate based on index */}
-                                                                <span className="text-amber-400 font-black text-sm">{100 - (idx * 5)}%</span>
+                                                                <span style={{ color: '#d97706', fontWeight: 900, fontSize: '13px' }}>{100 - (idx * 5)}%</span>
                                                             </div>
-                                                            <div className="text-xs text-slate-400 truncate mt-1">
+                                                            <div style={{ fontSize: '12px', color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const, marginTop: '4px' }}>
                                                                 {spot.desc || spot.address || 'AI 추천 장소'}
                                                             </div>
-                                                            <div className="mt-2 text-cyan-400 text-xs font-medium flex items-center gap-1">
+                                                            <div style={{ marginTop: '8px', color: '#0284c7', fontSize: '12px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '4px' }}>
                                                                 상세 정보 보기 <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>arrow_forward</span>
                                                             </div>
                                                         </div>
@@ -1163,16 +1162,16 @@ const RouteSearchPanel = ({ map, activeCategory, onCategoryChange, isExpanded, o
             {clusterSelectedPlaces.length > 0 && (
                 <div className="cluster-list-sheet" style={{
                     position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 1100,
-                    background: 'rgba(15, 23, 42, 0.85)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)',
+                    background: 'rgba(255, 255, 255, 0.88)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)',
                     borderTopLeftRadius: '24px', borderTopRightRadius: '24px',
-                    padding: '16px 20px', color: 'white', maxHeight: '65vh', display: 'flex', flexDirection: 'column',
-                    boxShadow: '0 -8px 32px rgba(0,0,0,0.4)',
-                    border: '1px solid rgba(255,255,255,0.1)'
+                    padding: '16px 20px', color: '#1e293b', maxHeight: '65vh', display: 'flex', flexDirection: 'column',
+                    boxShadow: '0 -8px 32px rgba(0,0,0,0.1)',
+                    border: '1px solid rgba(255,255,255,0.6)'
                 }}>
-                    <div style={{ width: '40px', height: '4px', background: 'rgba(255,255,255,0.3)', borderRadius: '2px', margin: '0 auto 16px' }} />
+                    <div style={{ width: '40px', height: '4px', background: 'rgba(0,0,0,0.12)', borderRadius: '2px', margin: '0 auto 16px' }} />
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                        <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 'bold' }}>클러스터 목록 ({clusterSelectedPlaces.length})</h3>
-                        <button onClick={() => setClusterSelectedPlaces([])} style={{ background: 'transparent', border: 'none', color: 'white', opacity: 0.7, cursor: 'pointer', padding: '4px' }}>
+                        <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 'bold', color: '#0f172a' }}>클러스터 목록 ({clusterSelectedPlaces.length})</h3>
+                        <button onClick={() => setClusterSelectedPlaces([])} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', padding: '4px' }}>
                             <span className="material-symbols-outlined">close</span>
                         </button>
                     </div>
@@ -1187,26 +1186,26 @@ const RouteSearchPanel = ({ map, activeCategory, onCategoryChange, isExpanded, o
                                 }}
                                 style={{
                                     display: 'flex', alignItems: 'center', padding: '16px',
-                                    background: 'rgba(255,255,255,0.05)', borderRadius: '16px',
-                                    cursor: 'pointer', border: '1px solid rgba(255,255,255,0.05)',
-                                    transition: 'background 0.2s'
+                                    background: 'rgba(255,255,255,0.6)', borderRadius: '16px',
+                                    cursor: 'pointer', border: '1px solid rgba(255,255,255,0.8)',
+                                    transition: 'background 0.2s', boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
                                 }}
-                                onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
-                                onMouseOut={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                                onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.9)'}
+                                onMouseOut={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.6)'}
                             >
                                 <div style={{
                                     width: '40px', height: '40px', borderRadius: '50%',
-                                    background: spot.type === 'FISHING' ? 'rgba(34,211,238,0.1)' : 'rgba(52,211,153,0.1)',
+                                    background: spot.type === 'FISHING' ? 'rgba(2,132,199,0.08)' : 'rgba(5,150,105,0.08)',
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    marginRight: '16px', border: `1px solid ${spot.type === 'FISHING' ? 'rgba(34,211,238,0.3)' : 'rgba(52,211,153,0.3)'}`
+                                    marginRight: '16px', border: `1px solid ${spot.type === 'FISHING' ? 'rgba(2,132,199,0.2)' : 'rgba(5,150,105,0.2)'}`
                                 }}>
                                     <span className="material-symbols-outlined" style={{
-                                        color: spot.type === 'FISHING' ? '#22D3EE' : '#34D399', fontSize: '20px'
+                                        color: spot.type === 'FISHING' ? '#0284c7' : '#059669', fontSize: '20px'
                                     }}>
                                         {spot.type === 'FISHING' ? 'phishing' : 'camping'}
                                     </span>
                                 </div>
-                                <span style={{ fontSize: '16px', fontWeight: 500, letterSpacing: '-0.3px' }}>{spot.name}</span>
+                                <span style={{ fontSize: '16px', fontWeight: 500, letterSpacing: '-0.3px', color: '#1e293b' }}>{spot.name}</span>
                             </div>
                         ))}
                     </div>

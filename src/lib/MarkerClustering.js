@@ -18,6 +18,7 @@ var MarkerClustering = function (options) {
 	this._averageCenter = options.averageCenter || false;
 	this._minClusterSize = options.minClusterSize || 2;
 	this._icons = options.icons || [];
+	this._onClusterClick = options.onClusterClick || null; // [NEW] Custom cluster click callback
 	this._indexGenerator = options.indexGenerator || function (count) {
 		var index = 0;
 
@@ -188,12 +189,17 @@ MarkerClustering.prototype._createCluster = function (markers) {
 	this._clusters.push(clusterMarker);
 	console.log(`[MarkerClustering] Cluster created at ${center} with count ${count}`);
 
-	// Click to zoom
+	// Click to zoom or trigger callback
+	var onClusterClick = this._onClusterClick;
 	naver.maps.Event.addListener(clusterMarker, 'click', function () {
-		var currentZoom = map.getZoom();
-		var nextZoom = currentZoom + 1; // Or calculate bounds to fit
-		map.setZoom(nextZoom);
-		map.setCenter(center);
+		if (onClusterClick && typeof onClusterClick === 'function') {
+			onClusterClick(markers, center);
+		} else {
+			var currentZoom = map.getZoom();
+			var nextZoom = currentZoom + 1; // Or calculate bounds to fit
+			map.setZoom(nextZoom);
+			map.setCenter(center);
+		}
 	});
 };
 

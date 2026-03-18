@@ -161,3 +161,35 @@ export interface SeasonRecommendation {
     recommendedSpecies: FishSpecies[];
     recommendedSpots: Place[];
 }
+
+// ==============================================================================
+// New Schema Types (2026-02-20)
+// ==============================================================================
+
+export interface Spot {
+    id: string; // uuid
+    name: string;
+    lat: number;
+    lng: number;
+    spot_type: 'CAMPING' | 'FISHING';
+    created_at?: string;
+}
+
+export interface SpotDetail {
+    spot_id: string; // foreign key to spots.id
+    fishing_info: {
+        target_species?: string[]; // e.g. ["우럭", "광어"]
+        recommended_baits?: string[]; // e.g. ["지렁이", "오징어"]
+        best_seasons?: string[]; // e.g. ["Spring", "Autumn"]
+        tips?: string;
+    } | null;
+    camping_info: {
+        facilities?: string[]; // e.g. ["Wifi", "Electricity"]
+        floor_type?: string;
+        price_range?: string;
+        recipes?: { name: string, desc: string }[];
+    } | null;
+    shopping_keywords: { name: string, category?: string }[] | null; // e.g. [{name: "이마트", category: "MART"}]
+    summary: string | null; // 3-line summary
+    created_at?: string;
+}

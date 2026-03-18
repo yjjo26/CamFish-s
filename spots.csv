@@ -1,0 +1,6 @@
+name,geom,point_type,season,species,gear,bait,campsite_area,food_places,activity,cleaning_required
+안면도 방포항,POINT(126.32 36.53),fishing,spring,"{Bass,Rockfish}","{Rod,Reel}","{Worm,Minnow}",0,"{Seafood,Cafe}","{Fishing}",false
+가평 자라섬,POINT(127.51 37.82),camping,all,"{}","{}","{}",500,"{Mart,Restaurant}","{Walking,Music}",true
+태안 몽산포,POINT(126.28 36.67),camping,summer,"{}","{}","{}",1000,"{Seafood}","{Swimming}",true
+충주호,POINT(127.99 37.00),fishing,autumn,"{Carp,Bass}","{Fly}","{Corn}",0,"{Local}","{Boating}",false
+제주 협재,POINT(126.23 33.39),camping,all,"{}","{}","{}",300,"{Cafe,Pub}","{Surfing}",true

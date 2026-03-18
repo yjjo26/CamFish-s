@@ -302,18 +302,16 @@ export const fetchBaitShops = async (
     _radiusKm: number = 20
 ): Promise<BaitShop[]> => {
     const { data, error } = await supabase
-        .from('places')
+        .from('spots')
         .select(`
             id,
             name,
             address,
-            amenity_details (
-                category,
-                rating,
-                operating_hours
-            )
+            spot_type,
+            lat,
+            lng
         `)
-        .eq('type', 'AMENITY');
+        .eq('spot_type', 'AMENITY');
 
     if (error) {
         console.error('Error fetching bait shops:', error);
@@ -322,21 +320,17 @@ export const fetchBaitShops = async (
 
     // Filter for BAIT_SHOP category and calculate distance
     const shops = data
-        .filter((place: any) => {
-            const details = place.amenity_details;
-            return details && details.category === 'BAIT_SHOP';
-        })
         .map((place: any) => {
             // Note: In production, use ST_Distance from PostGIS for accurate distance
             // This is a simplified client-side calculation
             return {
                 id: place.id,
                 name: place.name,
-                lat: 0, // Would come from location field
-                lng: 0,
+                lat: place.lat || 0,
+                lng: place.lng || 0,
                 address: place.address,
-                rating: place.amenity_details?.rating,
-                operatingHours: place.amenity_details?.operating_hours,
+                rating: 0,
+                operatingHours: '',
                 distance: 0 // Placeholder
             };
         });
@@ -398,34 +392,24 @@ export const fetchBaits = fetchBaitsForMultipleSpecies;
 // Fetch all verified spots for AI Context Injection
 export const fetchVerifiedSpots = async () => {
     const { data, error } = await supabase
-        .from('places')
-        .select('id, name, type, address, description, location')
-        .in('type', ['FISHING', 'CAMPING']);
+        .from('spots')
+        .select('id, name, spot_type, address, lat, lng')
+        .in('spot_type', ['FISHING', 'CAMPING']);
 
     if (error) {
         console.error('Error fetching verified spots:', error);
         return [];
     }
 
-    // location GEOGRAPHY에서 좌표 추출 (format: "POINT(lng lat)")
     return (data || []).map((place: any) => {
-        let lat = 0, lng = 0;
-        if (place.location) {
-            // location 문자열에서 좌표 추출: "POINT(127.123 37.456)" 형식
-            const match = String(place.location).match(/POINT\(([-\d.]+)\s+([-\d.]+)\)/);
-            if (match) {
-                lng = parseFloat(match[1]);
-                lat = parseFloat(match[2]);
-            }
-        }
         return {
             id: place.id,
             name: place.name,
-            type: place.type,
+            type: place.spot_type,
             address: place.address,
-            lat,
-            lng,
-            description: place.description
+            lat: place.lat,
+            lng: place.lng,
+            description: ''
         };
     });
 };

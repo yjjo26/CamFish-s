@@ -217,19 +217,16 @@ export const fetchNearbyAmenities = async (
     _radiusKm: number = 20
 ): Promise<CampAmenity[]> => {
     const { data, error } = await supabase
-        .from('places')
+        .from('spots')
         .select(`
             id,
             name,
             address,
-            amenity_details (
-                category,
-                rating,
-                operating_hours,
-                signature_menu
-            )
+            spot_type,
+            lat,
+            lng
         `)
-        .eq('type', 'AMENITY');
+        .eq('spot_type', 'AMENITY');
 
     if (error || !data) {
         console.error('Error fetching amenities:', error);
@@ -238,28 +235,19 @@ export const fetchNearbyAmenities = async (
 
     // Filter out BAIT_SHOP (handled by fishingService)
     const amenities = data
-        .filter((p: any) => {
-            const cat = p.amenity_details?.category;
-            return cat && cat !== 'BAIT_SHOP';
-        })
         .map((place: any) => {
-            const categoryMap: Record<string, 'STORE' | 'GAS' | 'RESTAURANT' | 'CONVENIENCE_STORE'> = {
-                'CONVENIENCE_STORE': 'CONVENIENCE_STORE',
-                'GAS_STATION': 'GAS',
-                'RESTAURANT': 'RESTAURANT',
-                'TOILET': 'STORE'
-            };
+            const amenityType: 'STORE' | 'GAS' | 'RESTAURANT' | 'CONVENIENCE_STORE' = 'STORE';
 
             return {
                 id: place.id,
                 name: place.name,
-                type: categoryMap[place.amenity_details?.category] || 'STORE',
-                lat: 0, // Would come from PostGIS
-                lng: 0,
+                type: amenityType,
+                lat: place.lat || 0,
+                lng: place.lng || 0,
                 address: place.address,
-                rating: place.amenity_details?.rating,
-                operatingHours: place.amenity_details?.operating_hours,
-                signatureMenu: place.amenity_details?.signature_menu
+                rating: 0,
+                operatingHours: '',
+                signatureMenu: ''
             };
         });
 

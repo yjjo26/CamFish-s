@@ -53,13 +53,12 @@ import { fetchCampingRecipes, fetchWinterEssentialGear, CampingGear, CampingReci
 // ==============================================================================
 
 // Helper to find verified shops from DB
-const findVerifiedShops = async (region: string, category: string): Promise<any[]> => {
+const findVerifiedShops = async (region: string, _category: string): Promise<any[]> => {
     try {
         const { data, error } = await supabase
-            .from('places')
+            .from('spots')
             .select('*')
             .ilike('name', `%${region}%`)
-            .eq('type', 'AMENITY')
             .limit(3);
 
         if (error) {
@@ -116,11 +115,11 @@ export const getCampingRecommendations = async (): Promise<{
  */
 export const findPlaceByName = async (name: string): Promise<string | null> => {
     const { data, error } = await supabase
-        .from('places')
+        .from('spots')
         .select('id')
         .ilike('name', `%${name}%`)
         .limit(1)
-        .single();
+        .maybeSingle();
 
     if (error || !data) return null;
     return data.id;
@@ -131,7 +130,7 @@ export const findPlaceByName = async (name: string): Promise<string | null> => {
  */
 export const getLocationSpecies = async (placeName: string): Promise<string[]> => {
     const { data, error } = await supabase
-        .from('places')
+        .from('spots')
         .select(`
             id,
             location_species_map (
@@ -142,7 +141,7 @@ export const getLocationSpecies = async (placeName: string): Promise<string[]> =
         `)
         .ilike('name', `%${placeName}%`)
         .limit(1)
-        .single();
+        .maybeSingle();
 
     if (error || !data) return [];
 
@@ -154,7 +153,7 @@ export const getLocationSpecies = async (placeName: string): Promise<string[]> =
  */
 export const getCampingSpotGear = async (placeName: string): Promise<{ name: string; reason: string }[]> => {
     const { data, error } = await supabase
-        .from('places')
+        .from('spots')
         .select(`
             id,
             spot_gear_recommendation (
@@ -166,7 +165,7 @@ export const getCampingSpotGear = async (placeName: string): Promise<{ name: str
         `)
         .ilike('name', `%${placeName}%`)
         .limit(1)
-        .single();
+        .maybeSingle();
 
     if (error || !data) return [];
 
@@ -327,8 +326,8 @@ export const analyzeTripIntent = async (query: string, startLocation: string = '
             for (const stopover of result.recommendedStopovers) {
                 // Try to find this place in our DB (e.g. 휴게소, 맛집)
                 const { data: places } = await supabase
-                    .from('places')
-                    .select('name, address, type')
+                    .from('spots')
+                    .select('name, spot_type')
                     .ilike('name', `%${stopover.name}%`)
                     .limit(1);
 
@@ -336,8 +335,8 @@ export const analyzeTripIntent = async (query: string, startLocation: string = '
                     const found = places[0];
                     console.log(`[Stopover Enrichment] Found DB Match: ${found.name}`);
                     stopover.name = found.name;
-                    stopover.address = found.address;
-                    stopover.type = found.type === 'AMENITY' ? 'Amenity' : found.type;
+                    stopover.type = found.spot_type || 'Unknown';
+                    stopover.address = '';
                 }
             }
         }
@@ -411,10 +410,10 @@ export const searchPlacesByKeywords = async (keywords: string[]): Promise<any[]>
 
     try {
         // Build OR conditions for each keyword
-        const orConditions = keywords.map(k => `name.ilike.%${k}%,address.ilike.%${k}%,description.ilike.%${k}%`).join(',');
+        const orConditions = keywords.map(k => `name.ilike.%${k}%`).join(',');
 
         const { data, error } = await supabase
-            .from('places')
+            .from('spots')
             .select('*')
             .or(orConditions)
             .limit(10);
@@ -427,7 +426,7 @@ export const searchPlacesByKeywords = async (keywords: string[]): Promise<any[]>
         // Score results by how many keywords they match
         const scoredResults = (data || []).map(place => {
             let score = 0;
-            const searchText = `${place.name} ${place.address || ''} ${place.description || ''}`.toLowerCase();
+            const searchText = `${place.name}`.toLowerCase();
 
             keywords.forEach(keyword => {
                 if (searchText.includes(keyword.toLowerCase())) {
@@ -435,7 +434,7 @@ export const searchPlacesByKeywords = async (keywords: string[]): Promise<any[]>
                 }
             });
 
-            return { ...place, matchScore: score };
+            return { ...place, matchScore: score, address: '', description: '', type: place.spot_type };
         });
 
         // Sort by match score (most matches first)

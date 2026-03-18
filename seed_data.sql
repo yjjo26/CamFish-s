@@ -1,5 +1,4 @@
--- Seed data for places table
-insert into places (name, type, address, lat, lng, "desc") values
+insert into places (name, type, address, lat, lng, description) values
 -- Existing Data from places.ts
 ('을왕리 선녀바위', 'FISHING', '인천광역시 중구 을왕동 678-188', 37.4562, 126.3725, '우럭, 광어, 숭어 (갯바위/원투)'),
 ('궁평항 피싱피어', 'FISHING', '경기도 화성시 서신면 궁평항로 1049-24', 37.1148, 126.6957, '망둥어, 숭어, 우럭 (가족 낚시)'),
